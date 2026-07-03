@@ -11,6 +11,7 @@ ENV DBT_BIN=/home/airflow/dbt-venv/bin/dbt
 RUN pip install --no-cache-dir \
         "boto3>=1.34,<2" \
         "trino>=0.336,<1" \
+        "pyiceberg[s3fs]>=0.11.1,<0.12" \
     && python -m venv "${DBT_VENV}" \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir --upgrade pip \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir \
