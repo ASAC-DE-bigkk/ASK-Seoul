@@ -1,9 +1,9 @@
 [submodule "dags"]
 	path = dags
 	url = https://github.com/ASAC-DE-bigkk/ASAC-DAG
-	branch = main
+	branch = dev
 
 [submodule "dbt"]
 	path = dbt
 	url = https://github.com/ASAC-DE-bigkk/ASAC-DBT
-	branch = main
+	branch = dev
