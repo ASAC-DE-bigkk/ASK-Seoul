@@ -58,6 +58,10 @@ services:
       - .env
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
+    ports:
+      # Trino HTTP(8080) → 호스트 30586. DBeaver/DataGrip 접속용.
+      # Trino 기본 인증 없음 → 127.0.0.1 전용 바인드(LAN 미노출).
+      - "127.0.0.1:30586:8080"
     healthcheck:
       test: ["CMD-SHELL", "trino --execute 'SELECT 1' >/dev/null 2>&1"]
       interval: 15s
