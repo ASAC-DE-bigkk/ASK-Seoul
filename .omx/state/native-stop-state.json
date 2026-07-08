@@ -1,0 +1,34 @@
+{
+  "sessions": {
+    "019f39f4-3e86-7502-8995-5745991aa704": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|딱 완료했어. `traffic_incident_bronze`는 **다른 도메인 영향 없이** `성공 알림`만 제거하고 `실패 알림`만 남기는 방향으로 pr 올려서 바로 머지했어. - pr: [https://github.com/asac-de-bigkk/asac-dag/pull/213](/c:/users/dell3571/desktop/projects/ask-seoul-sample) - 제목(한글): `fix: traffic 돌발정보 브론즈 알림 실패만 전송하도록 수정` - 병합 방식: merge commit(`--merge`), 분할/스쿼시 아님 - 변경 파일: `dags/domains/traffic/traffic_incident_bronze.py` - `verify_seoul_traffic_bronze_runtime`의 `on_success_callback=notify_traffic_bronze_success`만 제거 현재 동작은: - 5분 주기 수집 자체는 유지 - 09:00 신뢰성 리포트는 기존대로 - 돌발정보 `수집 리포트` 성공 메시지: 수신 안 함 - 실패 시만 실패 디스코드 알림 수신 ::git-push{cwd=\"c:/users/dell3571/desktop/projects/ask-seoul-sample/dags\" branch=\"fix/traffic-incident-bronze-fail-only\"} ::git-create-pr{cwd=\"c:/users/dell3571/desktop/projects/ask-seoul-sample/dags\" branch=\"fix/traffic-incident-bronze-fail-only\" url=\"https://github.com/asac-de-bigkk/asac-dag/pull/213\" isdraft=false}",
+        "first_seen_at": "2026-07-08T06:16:41.723Z",
+        "last_seen_at": "2026-07-08T06:16:41.768Z",
+        "repeat_count": 2,
+        "last_turn_id": "019f405d-ce2e-7dd1-8ac8-b5cc8bd576da",
+        "last_thread_id": null
+      }
+    },
+    "019f3a08-9e34-71a3-bb04-1c88f8ce4e4b": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|완료했어. 오늘 기준 handoff는 origin에 올렸고, 집에서 ip 바꿔서 바로 이어서 실행 가능한 형태로 정리해뒀어. - hand-off 파일: `kma-rate-limit-handoff-2026-07-07.md` - 증거 csv(테스트 데이터): `kma-rate-limit-recovery-checks-2026-07-07.csv` - 커밋: - `9eb6e14` (`docs: add kma rate limit handoff for home ip retest`) - `637a5bc` (`chore: attach recovery-check evidence csv for kma handoff`) - 현재 브랜치/푸시: - `feat/177-kma-runtime-image-airflow` - `origin`으로 push 완료 (원격은 푸시 메시지에 `ask-seoul` 새 위치 안내만 나왔고, push는 성공함) 참고로 `.omx/` 전체와 기존 dags/dbt 서브모듈 수정은 이번 handoff 커밋에서 제외했고, 핵심 handoff + 테스트 증거만 올려놨어. 집에서는 handoff에 적힌 순서대로 `test key`/`prod key` 1회 호출 → 회복체크 → rps 단계 재측정이면 바로 이어서 진행돼.",
+        "first_seen_at": "2026-07-07T10:59:14.936Z",
+        "last_seen_at": "2026-07-07T10:59:15.012Z",
+        "repeat_count": 2,
+        "last_turn_id": "019f3c39-aa9e-7220-9bda-0da419a3ae68",
+        "last_thread_id": null
+      }
+    },
+    "019f3f91-7bb7-7a70-a8e6-b13a092953b6": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|{\"suggestions\":[{\"title\":\"rebuild ask-seoul pr #9 and attach the missing weather runtime proof\",\"description\":\"ask-seoul pr #9 is still open from july 7 with the full rebuild recheck still unchecked, and the paired asac-dag weather pyiceberg change already merged yesterday. codex can sync the right dag commit, rebuild the airflow image, run the minimal weather validation, and draft the exact pr body update with evidence.\",\"prompt\":\"ask-seoul pr #9 is still open and its last unchecked item is the latest-branch full rebuild recheck. sync this workspace to the merged asac-dag weather pyiceberg change, rebuild the airflow image, run the minimal weather validation, and prepare the exact pr #9 body update with evidence.\",\"appid\":\"76869538009648d5b282a4bb21c3d157\"},{\"title\":\"make nested repo sync pull dev so merged dag fixes actually land\",\"description\":\"`scripts/update-nested-git.sh` still hardcodes `origin/main`, but your active team flow and yesterday's weather merge are landing on `dev`, so deploys can miss the code you just merged. codex can patch the sync path and nearby docs so this workspace stops drifting behind active dag work.\",\"prompt\":\"our nested repo sync still pulls `origin/main`, but the dag work i'm actually using is landing on `dev`. patch this repo so `scripts/update-nested-git.sh` and any nearby docs pull the right tracked branch for `dags` and don't silently miss merged fixes like yesterday's weather pyiceberg change.\",\"appid\":\"76869538009648d5b282a4bb21c3d157\"}]}",
+        "first_seen_at": "2026-07-08T02:35:06.001Z",
+        "last_seen_at": "2026-07-08T02:35:06.093Z",
+        "repeat_count": 2,
+        "last_turn_id": "019f3f91-7d3e-7713-9d8f-6e0b19be817c",
+        "last_thread_id": null
+      }
+    }
+  }
+}
