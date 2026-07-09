@@ -1,0 +1,152 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1783432466147,
+  "projectRoot": "c:\\Users\\Dell3571\\Desktop\\Projects\\ask-seoul-sample",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "scripts"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "dags": {
+      "path": "dags",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1783432466119,
+      "keyFiles": [
+        "common_admin_dong_bronze.py",
+        "common_dbt_smoke.py"
+      ]
+    },
+    "dbt": {
+      "path": "dbt",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1783432466120,
+      "keyFiles": []
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 4,
+      "lastAccessed": 1783432466120,
+      "keyFiles": [
+        "bootstrap-cloudflare.sh",
+        "check-r2-catalog-auth.sh",
+        "deploy.sh",
+        "update-nested-git.sh"
+      ]
+    },
+    "trino": {
+      "path": "trino",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1783432466121,
+      "keyFiles": []
+    },
+    "dags\\docs": {
+      "path": "dags\\docs",
+      "purpose": "Documentation",
+      "fileCount": 1,
+      "lastAccessed": 1783432466122,
+      "keyFiles": [
+        "plan.md"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "",
+      "accessCount": 1,
+      "lastAccessed": 1783432775218,
+      "type": "directory"
+    },
+    {
+      "path": ".env",
+      "accessCount": 1,
+      "lastAccessed": 1783432794374,
+      "type": "file"
+    },
+    {
+      "path": "kma-rate-limit-handoff-2026-07-07.md",
+      "accessCount": 1,
+      "lastAccessed": 1783432795338,
+      "type": "file"
+    },
+    {
+      "path": "dags",
+      "accessCount": 1,
+      "lastAccessed": 1783432796517,
+      "type": "directory"
+    },
+    {
+      "path": "dags\\common\\errors\\sink.py",
+      "accessCount": 1,
+      "lastAccessed": 1783432809635,
+      "type": "file"
+    },
+    {
+      "path": "dags\\common\\errors\\problem.py",
+      "accessCount": 1,
+      "lastAccessed": 1783432810483,
+      "type": "file"
+    },
+    {
+      "path": "dags\\common\\errors\\airflow.py",
+      "accessCount": 1,
+      "lastAccessed": 1783432810927,
+      "type": "file"
+    },
+    {
+      "path": "dags\\domains\\traffic\\traffic_incident_transform.py",
+      "accessCount": 1,
+      "lastAccessed": 1783432992722,
+      "type": "file"
+    },
+    {
+      "path": "dags\\domains\\weather\\weather_vilage_fcst_transform.py",
+      "accessCount": 1,
+      "lastAccessed": 1783432992959,
+      "type": "file"
+    },
+    {
+      "path": "dbt\\domains\\traffic\\models\\silver\\silver_seoul_traffic_incident.sql",
+      "accessCount": 1,
+      "lastAccessed": 1783433110999,
+      "type": "file"
+    },
+    {
+      "path": "dbt\\domains\\traffic\\profiles.yml",
+      "accessCount": 1,
+      "lastAccessed": 1783433111060,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

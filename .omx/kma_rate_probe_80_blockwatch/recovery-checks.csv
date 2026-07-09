@@ -1,0 +1,23 @@
+label,request_id,started_at,nx,ny,status,elapsed_ms,result_code,retry_after,ratelimit_limit,ratelimit_remaining,ratelimit_reset,error,body_snippet,label
+recovery-check,1,2026-07-07T14:49:11.542492+09:00,56,130,429,99.00430000197957,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,2,2026-07-07T14:50:11.641851+09:00,56,130,429,91.99909999733791,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,3,2026-07-07T14:51:11.734418+09:00,56,130,429,67.6664000020537,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,5,2026-07-07T14:53:11.802453+09:00,56,130,429,152.21530000053463,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,10,2026-07-07T14:58:11.955472+09:00,56,130,429,89.85350000148173,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,15,2026-07-07T15:03:12.045787+09:00,56,130,429,92.96140000151354,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,20,2026-07-07T15:08:12.139140+09:00,56,130,429,58.52719999893452,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,30,2026-07-07T15:18:12.198383+09:00,56,130,429,91.1089000001084,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,40,2026-07-07T15:28:12.289900+09:00,56,130,429,50.91550000361167,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,50,2026-07-07T15:38:12.341577+09:00,56,130,429,70.38670000474667,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check
+recovery-check,60,2026-07-07T15:48:12.412125+09:00,56,130,429,100.24780000094324,,,,,,Too Many Requests,"API token quota exceeded
+",recovery-check

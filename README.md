@@ -5,10 +5,10 @@ This repository runs a local Docker-based control plane for a shared prod Cloudf
 The first version proves the execution path:
 
 1. Airflow runs a smoke DAG.
-2. The DAG runs dbt.
-3. dbt connects to Trino.
-4. Trino connects to Cloudflare R2 Data Catalog as an Iceberg REST catalog.
-5. dbt creates, reads, tests, and drops smoke tables in `iceberg.ops_smoke`.
+2. The DAG uploads the source fixture to an R2 raw object path.
+3. The DAG loads the same rows into an Iceberg bronze table through Trino.
+4. dbt reads the bronze table as a source.
+5. dbt builds and tests silver and gold Iceberg tables.
 
 ## Current Status
 
@@ -18,21 +18,28 @@ Verified:
 
 - Airflow `3.2.2` API server, scheduler, DAG processor, and triggerer are running.
 - dbt runs from an isolated virtualenv in the Airflow image.
+- Airflow has Python clients for R2 object upload and Trino SQL ingestion.
 - Trino loads the `iceberg` catalog.
 - R2 Data Catalog auth check returns HTTP `200`.
 - The Airflow DAG `dbt_trino_iceberg_smoke` completed successfully.
-- `iceberg.ops_smoke` remains as the reserved smoke schema, and smoke tables are dropped by cleanup.
+- `iceberg.ops_smoke` remains as the reserved smoke schema. Raw and bronze data are allowed to accumulate; silver/gold deduplicate by `event_id`.
 
 ## Fixed Names
 
 | Item | Value |
 | --- | --- |
 | R2 bucket | `seoul` |
+| Dev R2 bucket | `seoul-dev` |
 | Trino catalog | `iceberg` |
+| Dev Trino catalog | `iceberg_dev` |
 | Smoke schema | `ops_smoke` |
+| dbt target | `prod` |
 | Airflow web port | `30585` |
 | Airflow DAG | `dbt_trino_iceberg_smoke` |
 | dbt project/profile | `elt_smoke` |
+| Bronze table | `bronze_sample_events` |
+| Silver model | `silver_sample_events` |
+| Gold model | `gold_event_type_metrics` |
 | Airflow version | `3.2.2` |
 | dbt version | `1.10.22` |
 | dbt-trino version | `1.10.2` |
@@ -42,10 +49,11 @@ Verified:
 | Path | Purpose |
 | --- | --- |
 | `docker-compose.yml` | Postgres, Trino, Airflow init/API server/scheduler/DAG processor/triggerer |
-| `Dockerfile.airflow` | Airflow 3.2.2 image with `dbt-core` and `dbt-trino` installed in an isolated venv |
+| `Dockerfile.airflow` | Airflow 3.2.2 image with R2/Trino Python clients plus `dbt-core` and `dbt-trino` in an isolated venv |
 | `trino/catalog/iceberg.properties` | Trino Iceberg REST catalog config |
-| `dbt/elt_smoke` | dbt smoke project |
-| `dags/dbt_trino_iceberg_smoke.py` | Airflow DAG for dbt smoke run |
+| `dbt/elt_smoke` | dbt medallion smoke project |
+| `dbt/elt_smoke/seeds/sample_events.csv` | Source fixture used by Airflow to simulate external API data |
+| `dags/dbt_trino_iceberg_smoke.py` | Airflow DAG for R2 raw upload, bronze load, and dbt validation |
 | `scripts/update-nested-git.sh` | Pulls the nested DAG and dbt repositories before deployment |
 | `scripts/deploy.sh` | Updates nested repos, then starts Docker Compose with rebuild |
 | `scripts/bootstrap-cloudflare.sh` | R2 bucket/Data Catalog bootstrap helper |
@@ -81,6 +89,40 @@ Required Airflow/Postgres local values:
 - `POSTGRES_DB`
 
 `CLOUDFLARE_API_TOKEN` can stay empty when you use `npx wrangler login` locally. `WRANGLER_R2_SQL_AUTH_TOKEN` is only needed for optional Wrangler R2 SQL checks.
+
+Optional dev Cloudflare/R2 values:
+
+- `R2_DEV_BUCKET_NAME`
+- `TRINO_DEV_ICEBERG_CATALOG`
+- `DEV_SMOKE_SCHEMA`
+- `DBT_TARGET`
+- `R2_DEV_RAW_PREFIX`
+- `R2_DEV_ENDPOINT`
+- `R2_DEV_ACCESS_KEY_ID`
+- `R2_DEV_SECRET_ACCESS_KEY`
+- `R2_DEV_DATA_CATALOG_TOKEN`
+- `R2_DEV_DATA_CATALOG_URI`
+- `R2_DEV_DATA_CATALOG_WAREHOUSE`
+
+The Trino dev catalog is `iceberg_dev`. dbt can target it with:
+
+```bash
+docker compose exec --workdir /opt/airflow/dbt/elt_smoke airflow-scheduler /home/airflow/dbt-venv/bin/dbt debug --target dev
+docker compose exec --workdir /opt/airflow/dbt/elt_smoke airflow-scheduler /home/airflow/dbt-venv/bin/dbt build --target dev
+```
+
+Use `DEV_SMOKE_SCHEMA=dev_<github_id>` so dev tables do not collide. If it is omitted, dev falls back to `dev_local`, not the prod smoke schema. Do not reuse prod credentials for dev testing.
+
+To run the Airflow DAG against dev, set these values in `.env` and recreate the Airflow services:
+
+```env
+DBT_TARGET=dev
+TRINO_DEV_ICEBERG_CATALOG=iceberg_dev
+DEV_SMOKE_SCHEMA=dev_<github_id>
+R2_DEV_RAW_PREFIX=dev/<github_id>/raw/sample_events
+```
+
+With `DBT_TARGET=dev`, the DAG uses `R2_DEV_*`, writes to `iceberg_dev.<DEV_SMOKE_SCHEMA>.bronze_sample_events`, and runs dbt with `--target dev`.
 
 ## Bootstrap Cloudflare
 
@@ -150,13 +192,13 @@ docker compose exec airflow-scheduler airflow dags trigger dbt_trino_iceberg_smo
 
 The DAG runs:
 
-1. `dbt run-operation prepare_smoke_schema`
-2. `dbt seed --full-refresh --select sample_events`
-3. `dbt run --select smoke_event_counts`
-4. `dbt test --select sample_events smoke_event_counts`
-5. `dbt run-operation cleanup_smoke`
+1. Uploads `dbt/elt_smoke/seeds/sample_events.csv` to an R2 raw object path:
+   `raw/sample_events/load_date=<utc-date>/sample_events_<utc-timestamp>.csv`
+2. Creates/appends `iceberg.ops_smoke.bronze_sample_events` through Trino.
+3. Runs `dbt run --select silver_sample_events gold_event_type_metrics`.
+4. Runs `dbt test`.
 
-The cleanup step drops `iceberg.ops_smoke.smoke_event_counts` and `iceberg.ops_smoke.sample_events`.
+There is no cleanup step. Raw R2 objects and bronze rows may accumulate across repeated runs. `silver_sample_events` keeps the latest row per `event_id`, so `gold_event_type_metrics` remains stable for the same fixture data.
 
 ## Direct Checks
 
@@ -165,6 +207,9 @@ Trino is only exposed on the Docker network. Use `docker compose exec` for direc
 ```bash
 docker compose exec trino trino --execute "SHOW CATALOGS"
 docker compose exec trino trino --execute "SHOW SCHEMAS FROM iceberg"
+docker compose exec trino trino --execute "SHOW SCHEMAS FROM iceberg_dev"
+docker compose exec trino trino --execute "SHOW TABLES FROM iceberg.ops_smoke"
+docker compose exec trino trino --execute "SELECT * FROM iceberg.ops_smoke.gold_event_type_metrics ORDER BY event_type"
 ```
 
 Check that the R2 Data Catalog token can access the configured warehouse:
@@ -202,7 +247,7 @@ Allowed with peer review:
 
 - Changes inside a mentee-owned domain schema, such as `iceberg.weather`
 - Domain-specific DAG/dbt model/test/source changes
-- Small public/non-sensitive `dbt seed` CSV files
+- Small public/non-sensitive source fixture CSV files
 - Low-frequency schedule changes with small cost impact
 
 Requires mentor approval:

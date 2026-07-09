@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"which aws python py 2>/dev/null; python --version 2>/dev/null; python -c \\\"import boto3; print('boto3', boto3.__version__)\\\" 2>/dev/null; python -c \\\"import duckdb; print('duckdb', duckdb....",
+  "error": "Exit code 1\n/c/Program Files/Amazon/AWSCLIV2/aws\n/c/Users/Dell3571/AppData/Local/Programs/Python/Python311/python\n/c/WINDOWS/py\nPython 3.11.6\r\nboto3 1.42.89",
+  "timestamp": "2026-07-07T14:00:19.672Z",
+  "retry_count": 1
+}
