@@ -35,6 +35,7 @@
 | DL-007 | R2 미완료 멀티파트 업로드 잔재 — 저속 네트워크 타임아웃과 쓰기 잔재 | 해결 |
 | DL-008 | 네임스페이스 이관(dev_masondev1024→weather_traffic_bronze) — 무복사 RENAME | 해결 |
 | DL-009 | traffic transform 주기 전환(5분 asset→hourly cron) — 정확성/신선도 테스트 분리 | 해결 |
+| DL-010 | KMA 값 의미 감사 — 표현 체제 발견과 silver 의미 계층 도입 | PR 리뷰 대기(DAG#261·DBT#128) |
 
 ---
 
@@ -143,6 +144,15 @@
 - **결정과 근거**: 스케줄을 되돌리는 대신 **테스트를 수정**. `assert_silver_traffic_latest_publishable_record`가 정확성(silver가 처리 시점까지의 최신본을 골랐는가)과 신선도(bronze 절대 최신과 일치하는가)를 한 쿼리에 결합하고 있었고, 후자는 hourly 전환으로 **의도적으로 깨지는 계약**(최대 1시간 지연 수용). bronze 비교 대상에 silver watermark(max collected_at) 상한을 추가해 정확성만 검증 — 신선도는 `dbt_source_freshness`가 이미 별도 감시.
 - **결과**: 실패 조건 재현 상태에서 단독 테스트 PASS=1 → 13:10 KST 정기 런 성공. transform 부하 1/12로 감소.
 - **회고**: **스케줄은 데이터 계약의 일부다** — 주기를 바꾸면 "최신"의 정의가 바뀌고, 그 정의에 암묵적으로 기대던 테스트가 드러난다. 첫 런의 실패는 버그가 아니라 결합을 드러낸 신호였다. 진단 경로: BashOperator의 `exit code 1` 포장 예외에는 정보가 없다 — dbt 태스크 실패는 dbt.log(FAIL 노드)가 원장이다.
+
+### DL-010 KMA 값 의미 감사 — 표현 체제 발견과 silver 의미 계층 도입
+
+- **기간 / 상태**: 2026-07-10 감사 → 이슈 분할(ASAC-DAG#260, ASAC-DBT#113) → 구현 / PR 리뷰 대기(DAG PR#261, DBT PR#128)
+- **문제**: silver 의 값 해석이 `try_cast(fcst_value as double)` 단일 캐스트. 실측: PCP/SNO 의 **78.2%가 num NULL**이고 그 NULL 안에 '강수없음'(명시적 없음)과 '2.0mm'(정량 — 단위 때문에 cast 실패 89,926행)가 무구분 혼재. 같은 의미가 근구간 '강수없음'→NULL / 원구간 '0'→0.0 으로 이중 인코딩.
+- **핵심 발견(실데이터)**: PCP 표현이 **리드타임 ~50h 경계로 두 체제** — 근구간(1~70h) '강수없음'/'1mm 미만'/'X.Ymm', 원구간(50~103h) '0'/맨몸 숫자('1','0.2'). 코드가 아니라 표현 분류 × lead 분포 쿼리로 발견. TMN=0600·TMX=1500 전용(sparse), WAV 전량 '0', PTY {0,1,4}·SKY {1,3,4}, unknown category 0종.
+- **결정**: ① Bronze 는 이미 교과서적(원형 varchar·무필터·lineage) — 무변경, page_no 일급 컬럼만 추가(#260). ② Silver 에 additive 의미 계층: `kma_value_semantics` 매크로 → value_representation/value_num(정량만)/lower·upper bound('이상'의 무상한 보존)/qualitative_code + forecast_lead_hours. ③ 원구간 맨몸값은 공식 매핑 검증 전까지 **bare_numeric 으로 정직 분류** — is_extended 불리언 미도입(50h는 실측 상관일 뿐, 사실만 제공). ④ drift 는 차단이 아니라 감지: unparseable=0 알람 + category/PTY·SKY 도메인 warn + PTY↔PCP 모순 warn.
+- **결과**: silver 재빌드 후 테스트 10/10 PASS, 정량 72,911행 복원(전엔 NULL), 범위 44,014행 bounds 파싱, unparseable 0. 기존 fcst_value_num 호환 유지(additive).
+- **회고**: "값이 숫자다"는 스키마 가정은 소스의 **표현 계약**을 조사해야 검증된다 — 감사의 순서(코드 의도 → git 이력 → 실데이터 분포 → 리드타임 교차)가 try_cast 뒤에 숨은 의미 손실을 드러냈다. 모르는 것(연장 맨몸값의 공식 의미)은 추정하지 않고 이름에 드러냈다(bare_numeric). 이슈→브랜치→PR 분할로 dags/dbt 변경의 리뷰 단위를 분리.
 
 ---
 
