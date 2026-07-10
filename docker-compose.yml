@@ -52,6 +52,29 @@ services:
     networks:
       - elt_net
 
+  serving-postgres:
+    # gold 서빙 DB(도메인 공용) — Airflow 메타데이터용 postgres 와 분리된 전용 컨테이너.
+    # commerce gold(commerce_* 테이블/뷰)는 commerce_load_gold DAG 가 여기로 적재한다.
+    # 루트 .env 를 env_file 로 주입하지 않는다(API 키 등 무관 시크릿 격리) — 필요한 값만 명시.
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${SERVING_POSTGRES_USER:-serving}
+      POSTGRES_PASSWORD: ${SERVING_POSTGRES_PASSWORD:-serving}   # dev 기본값 — prod 는 .env 로 교체
+      POSTGRES_DB: ${SERVING_POSTGRES_DB:-serving}
+    volumes:
+      - serving_postgres_data:/var/lib/postgresql/data
+    ports:
+      # DBeaver/DataGrip 접속용. 인증은 password 뿐 → 127.0.0.1 전용 바인드(LAN 미노출, trino 관례 동일).
+      - "127.0.0.1:30587:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SERVING_POSTGRES_USER:-serving} -d ${SERVING_POSTGRES_DB:-serving}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - elt_net
+
   trino:
     image: trinodb/trino:latest
     env_file:
@@ -144,6 +167,7 @@ services:
 
 volumes:
   postgres_data:
+  serving_postgres_data:
   airflow_logs:
 
 networks:
