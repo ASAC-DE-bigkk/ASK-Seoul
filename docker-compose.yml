@@ -79,6 +79,10 @@ services:
     image: trinodb/trino:latest
     env_file:
       - .env
+    environment:
+      # serving 카탈로그(serving.properties)가 ${ENV:...} 로 참조 — dev 기본 serving/serving.
+      SERVING_POSTGRES_USER: ${SERVING_POSTGRES_USER:-serving}
+      SERVING_POSTGRES_PASSWORD: ${SERVING_POSTGRES_PASSWORD:-serving}
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
     ports:
