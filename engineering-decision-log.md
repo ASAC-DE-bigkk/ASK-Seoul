@@ -35,7 +35,7 @@
 | DL-007 | R2 미완료 멀티파트 업로드 잔재 — 저속 네트워크 타임아웃과 쓰기 잔재 | 해결 |
 | DL-008 | 네임스페이스 이관(dev_masondev1024→weather_traffic_bronze) — 무복사 RENAME | 해결 |
 | DL-009 | traffic transform 주기 전환(5분 asset→hourly cron) — 정확성/신선도 테스트 분리 | 해결 |
-| DL-010 | KMA 값 의미 감사 — 표현 체제 발견과 silver 의미 계층 도입 | PR 리뷰 대기(DAG#261·DBT#128) |
+| DL-010 | KMA 값 의미 감사 — 표현 체제 발견과 silver 의미 계층 도입 | 해결(2026-07-10 DAG#261·DBT#128 머지) |
 
 ---
 
@@ -147,7 +147,7 @@
 
 ### DL-010 KMA 값 의미 감사 — 표현 체제 발견과 silver 의미 계층 도입
 
-- **기간 / 상태**: 2026-07-10 감사 → 이슈 분할(ASAC-DAG#260, ASAC-DBT#113) → 구현 / PR 리뷰 대기(DAG PR#261, DBT PR#128)
+- **기간 / 상태**: 2026-07-10 감사 → 이슈 분할(ASAC-DAG#260, ASAC-DBT#113) → 구현 → 같은 날 머지 완료(DAG PR#261, DBT PR#128). 잔여: partial-page 품질의 silver 노출(선행분 page_no 는 반영됨)
 - **문제**: silver 의 값 해석이 `try_cast(fcst_value as double)` 단일 캐스트. 실측: PCP/SNO 의 **78.2%가 num NULL**이고 그 NULL 안에 '강수없음'(명시적 없음)과 '2.0mm'(정량 — 단위 때문에 cast 실패 89,926행)가 무구분 혼재. 같은 의미가 근구간 '강수없음'→NULL / 원구간 '0'→0.0 으로 이중 인코딩.
 - **핵심 발견(실데이터)**: PCP 표현이 **리드타임 ~50h 경계로 두 체제** — 근구간(1~70h) '강수없음'/'1mm 미만'/'X.Ymm', 원구간(50~103h) '0'/맨몸 숫자('1','0.2'). 코드가 아니라 표현 분류 × lead 분포 쿼리로 발견. TMN=0600·TMX=1500 전용(sparse), WAV 전량 '0', PTY {0,1,4}·SKY {1,3,4}, unknown category 0종.
 - **결정**: ① Bronze 는 이미 교과서적(원형 varchar·무필터·lineage) — 무변경, page_no 일급 컬럼만 추가(#260). ② Silver 에 additive 의미 계층: `kma_value_semantics` 매크로 → value_representation/value_num(정량만)/lower·upper bound('이상'의 무상한 보존)/qualitative_code + forecast_lead_hours. ③ 원구간 맨몸값은 공식 매핑 검증 전까지 **bare_numeric 으로 정직 분류** — is_extended 불리언 미도입(50h는 실측 상관일 뿐, 사실만 제공). ④ drift 는 차단이 아니라 감지: unparseable=0 알람 + category/PTY·SKY 도메인 warn + PTY↔PCP 모순 warn.
