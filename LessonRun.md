@@ -176,3 +176,35 @@ Lesson:
   - SQL literal helpers
   - raw object key builder
 - dbt 로컬 변경은 아직 별도 PR로 정리되지 않았다. Silver/Gold 계약 합의 후 진행한다.
+
+## 2026-07-10 — dev Silver/Gold 복구 및 공통축 검증
+
+- 실행 환경: `iceberg_dev` catalog만 사용했고, transform DAG의 paused 상태는 변경하지 않았다.
+- 관련 이슈: ASAC-DBT #53, ASAC-DAG #167, #168.
+
+### Weather (KMA 단기예보)
+
+- native grid Silver를 보존하고, 대표점 격자 매핑을 이용한 행정동 grain `silver_weather_forecast_by_admin_dong`을 추가했다.
+- Airflow 검증 run: `manual__2026-07-10T01:42:02.259216+00:00` — 성공.
+- 최종 dev row count:
+  - `silver_kma_vilage_fcst`: 4,137,240
+  - `silver_weather_forecast_by_admin_dong`: 22,046,864
+  - `gold_weather_forecast_by_place`: 1,331,386
+- 행정동 Silver와 장소 Gold의 `admin_dong_code`, `gu_code`, `latitude`, `longitude` null 및 `event_at != forecast_at`는 모두 0건이다.
+- 최신 Bronze 격자 중 행정동 파생 Silver에 더 늦게 들어오지 않은 14개 격자는 427개 행정동 대표점 매핑 범위 밖이었다. Grid Silver에는 Bronze 최신 `collected_at`까지 정상 반영됐다.
+
+### Traffic (TOPIS 돌발정보)
+
+- #55의 incremental merge 복구(임시 테이블 물질화 및 layered TM→WGS84 변환)가 dev에서 재현 없이 성공했다.
+- Airflow 검증 run: `manual__2026-07-10T01:50:11.061806+00:00` — 성공.
+- 최종 dev row count:
+  - `silver_seoul_traffic_incident`: 838
+  - `gold_traffic_incident_summary.row_count`: 838
+- Silver의 `event_at != occurred_at`는 0건이고, Bronze와 Silver의 최대 `collected_at`는 모두 `2026-07-10 01:50:12 UTC`였다.
+- 838건 중 8건은 WGS84 좌표는 있으나 행정동 boundary seed와 `ST_Intersects`하지 않아 `admin_dong_code`/`gu_code`가 NULL이다. 이는 현재 계약에서 boundary miss를 허용하고 coverage로 감시하는 경우이며, 자동 재활성화 전 팀이 fallback 정책(유지·nearest 매핑·boundary seed 보완)을 결정해야 한다.
+
+### Lesson
+
+- Silver test selector가 아직 생성하지 않은 Gold 교차 테스트를 포함하면 구조적으로 실패한다. Silver 단계에서 해당 Gold 테스트를 제외하고, Gold 재생성 후 Gold 단계에서 실행해야 한다.
+- `DBT_PROJECT_DIR`와 `DBT_PROFILES_DIR`가 전역 `elt_smoke`로 설정된 런타임에서는 도메인 DAG가 두 값을 각 도메인 프로젝트로 명시해야 한다.
+- commit/PR 및 paused DAG 재활성화는 검증 결과와 boundary miss 정책을 리뷰한 뒤 dev 기준으로 진행한다.
