@@ -13,7 +13,8 @@ RUN pip install --no-cache-dir \
         "trino>=0.336,<1" \
         "pyiceberg[s3fs]>=0.11.1,<0.12" \
         "pyarrow>=12" \
-        "astronomer-cosmos>=1.8,<2" \
+        "astronomer-cosmos[openlineage]>=1.8,<2" \
+        "apache-airflow-providers-openlineage>=2,<3" \
     && python -m venv "${DBT_VENV}" \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir --upgrade pip \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir \
