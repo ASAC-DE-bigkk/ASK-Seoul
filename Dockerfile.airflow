@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir \
         "pyarrow>=12" \
         "astronomer-cosmos[openlineage]>=1.8,<2" \
         "apache-airflow-providers-openlineage>=2,<3" \
+        "apache-airflow-providers-trino>=6,<7" \
     && python -m venv "${DBT_VENV}" \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir --upgrade pip \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir \

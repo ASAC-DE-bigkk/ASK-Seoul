@@ -147,6 +147,11 @@ services:
       SERVING_POSTGRES_PASSWORD: ${SERVING_POSTGRES_PASSWORD:-serving}
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
+      # 저메모리 환경 안정성(commerce gold detail json 추출 OOM 회피) — 힙 상한 + spill(파일시스템=스왑).
+      # 미마운트면 기본(MaxRAMPercentage=80·spill off)로 복귀해 대형 detail 적재 시 OS OOM-kill 위험.
+      # 상세: dags/domains/commerce/change-log.md #59.
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
     ports:
       # Trino HTTP(8080) → 호스트 30586. DBeaver/DataGrip 접속용.
       # Trino 기본 인증 없음 → 127.0.0.1 전용 바인드(LAN 미노출).
