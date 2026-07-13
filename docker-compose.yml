@@ -145,6 +145,9 @@ services:
       # serving 카탈로그(serving.properties)가 ${ENV:...} 로 참조 — dev 기본 serving/serving.
       SERVING_POSTGRES_USER: ${SERVING_POSTGRES_USER:-serving}
       SERVING_POSTGRES_PASSWORD: ${SERVING_POSTGRES_PASSWORD:-serving}
+      # 노드별 병렬도(고사양 자동 최적화 노브) — 기본 2(공유 VM 저사양 안전). 고사양 노드는
+      # host .env 에 TRINO_TASK_CONCURRENCY=16 등으로 상향. config.properties 가 ${ENV:} 로 참조.
+      TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
       # 저메모리 환경 안정성(commerce gold detail json 추출 OOM 회피) — 힙 상한 + spill(파일시스템=스왑).
