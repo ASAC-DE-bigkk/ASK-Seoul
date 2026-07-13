@@ -25,6 +25,11 @@ x-airflow-common: &airflow-common
     TRINO_HOST: trino
     TRINO_PORT: "8080"
     TRINO_USER: airflow
+    # OpenLineage → Marquez(lineage 프로파일). Cosmos/dbt run 태스크가 물리 relation 기반
+    # lineage 이벤트를 marquez-api 로 방출한다. marquez 미기동(프로파일 off) 시 방출은
+    # fail-open(경고만, 태스크 실패 아님). 배경: dags/domains/commerce/docs/cosmos.md §6.
+    AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://marquez-api:5000", "endpoint": "api/v1/lineage"}'
+    AIRFLOW__OPENLINEAGE__NAMESPACE: "commerce-elt"
   user: "${AIRFLOW_UID}:0"
   volumes:
     - ./dags:/opt/airflow/dags:ro
@@ -76,6 +81,63 @@ services:
     networks:
       - elt_net
 
+  # ── OpenLineage 백엔드(Marquez) — `lineage` 프로파일 전용 ──────────────────────
+  # 기동: docker compose --profile lineage up -d (core 스택엔 영향 없음).
+  # UI: http://127.0.0.1:3000 · API: http://127.0.0.1:5000. 배경: dags/domains/commerce/docs/cosmos.md §6.
+  marquez-db:
+    profiles: ["lineage"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${MARQUEZ_POSTGRES_USER:-marquez}
+      POSTGRES_PASSWORD: ${MARQUEZ_POSTGRES_PASSWORD:-marquez}   # dev 기본값 — prod 는 .env 로 교체
+      POSTGRES_DB: ${MARQUEZ_POSTGRES_DB:-marquez}
+    volumes:
+      - marquez_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MARQUEZ_POSTGRES_USER:-marquez} -d ${MARQUEZ_POSTGRES_DB:-marquez}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - elt_net
+
+  marquez-api:
+    profiles: ["lineage"]
+    # OpenLineage 수집 API + lineage 저장. 기동 시 flyway 마이그레이션 자동 수행.
+    image: marquezproject/marquez:0.50.0
+    environment:
+      MARQUEZ_PORT: "5000"
+      MARQUEZ_ADMIN_PORT: "5001"
+      POSTGRES_HOST: marquez-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${MARQUEZ_POSTGRES_DB:-marquez}
+      POSTGRES_USER: ${MARQUEZ_POSTGRES_USER:-marquez}
+      POSTGRES_PASSWORD: ${MARQUEZ_POSTGRES_PASSWORD:-marquez}
+    ports:
+      # API/admin — 인증 없음 → 127.0.0.1 전용 바인드(관례 동일).
+      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:5001:5001"
+    depends_on:
+      marquez-db:
+        condition: service_healthy
+    networks:
+      - elt_net
+
+  marquez-web:
+    profiles: ["lineage"]
+    # lineage 시각화 UI → 브라우저 http://127.0.0.1:3000
+    image: marquezproject/marquez-web:0.50.0
+    environment:
+      MARQUEZ_HOST: marquez-api
+      MARQUEZ_PORT: "5000"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - marquez-api
+    networks:
+      - elt_net
+
   trino:
     image: trinodb/trino:latest
     env_file:
@@ -84,8 +146,16 @@ services:
       # serving 카탈로그(serving.properties)가 ${ENV:...} 로 참조 — dev 기본 serving/serving.
       SERVING_POSTGRES_USER: ${SERVING_POSTGRES_USER:-serving}
       SERVING_POSTGRES_PASSWORD: ${SERVING_POSTGRES_PASSWORD:-serving}
+      # 노드별 병렬도(고사양 자동 최적화 노브) — 기본 2(공유 VM 저사양 안전). 고사양 노드는
+      # host .env 에 TRINO_TASK_CONCURRENCY=16 등으로 상향. config.properties 가 ${ENV:} 로 참조.
+      TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
+      # 저메모리 환경 안정성(commerce gold detail json 추출 OOM 회피) — 힙 상한 + spill(파일시스템=스왑).
+      # 미마운트면 기본(MaxRAMPercentage=80·spill off)로 복귀해 대형 detail 적재 시 OS OOM-kill 위험.
+      # 상세: dags/domains/commerce/change-log.md #59.
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
     ports:
       # Trino HTTP(8080) → 호스트 30586. DBeaver/DataGrip 접속용.
       # Trino 기본 인증 없음 → 127.0.0.1 전용 바인드(LAN 미노출).
@@ -174,6 +244,7 @@ volumes:
   postgres_data:
   serving_postgres_data:
   airflow_logs:
+  marquez_db_data:      # lineage 프로파일(Marquez) 전용
 
 networks:
   elt_net:
