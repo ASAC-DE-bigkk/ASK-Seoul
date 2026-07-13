@@ -131,6 +131,7 @@ services:
     environment:
       MARQUEZ_HOST: marquez-api
       MARQUEZ_PORT: "5000"
+      WEB_PORT: "3000"        # 없으면 setupProxy.js 가 undefined 포트로 리슨 → 3000 접속 불가
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
