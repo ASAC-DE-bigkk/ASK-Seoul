@@ -140,7 +140,9 @@ services:
       - elt_net
 
   trino:
-    image: trinodb/trino:latest
+    image: trinodb/trino:482
+    restart: unless-stopped
+    mem_limit: ${TRINO_MEMORY_LIMIT:-9g}
     env_file:
       - .env
     environment:
@@ -150,6 +152,12 @@ services:
       # 노드별 병렬도(고사양 자동 최적화 노브) — 기본 2(공유 VM 저사양 안전). 고사양 노드는
       # host .env 에 TRINO_TASK_CONCURRENCY=16 등으로 상향. config.properties 가 ${ENV:} 로 참조.
       TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
+      # 9 GiB container 기본값 × MaxRAMPercentage=55 ≈ 4.95 GiB heap.
+      # query user memory 2 GiB + 비추적 heap headroom 2 GiB < max heap 을 유지한다.
+      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-2GB}
+      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2GB}
+      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-2GB}
+      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-4GB}
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
       # 저메모리 환경 안정성(commerce gold detail json 추출 OOM 회피) — 힙 상한 + spill(파일시스템=스왑).
@@ -157,6 +165,8 @@ services:
       # 상세: dags/domains/commerce/change-log.md #59.
       - ./trino/jvm.config:/etc/trino/jvm.config:ro
       - ./trino/config.properties:/etc/trino/config.properties:ro
+      - ./trino/resource-groups.properties:/etc/trino/resource-groups.properties:ro
+      - ./trino/resource-groups.json:/etc/trino/resource-groups.json:ro
     ports:
       # Trino HTTP(8080) → 호스트 30586. DBeaver/DataGrip 접속용.
       # Trino 기본 인증 없음 → 127.0.0.1 전용 바인드(LAN 미노출).
@@ -186,6 +196,7 @@ services:
           --role Admin \
           --email "$${AIRFLOW_ADMIN_EMAIL}" \
           --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
+        /entrypoint airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"
     user: "0:0"
     depends_on:
       postgres:
