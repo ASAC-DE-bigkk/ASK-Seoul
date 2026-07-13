@@ -22,7 +22,7 @@
 
 ## 커밋
 
-- 커밋: `0e0b4ba7458f7b99cfd281e81784fc079698aea0`
+- 구현 커밋: `80b8381`
 - 메시지: `fix(airflow): configure external task log URL`
 
 ## 상태
