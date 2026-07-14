@@ -33,6 +33,9 @@ x-airflow-common: &airflow-common
   user: "${AIRFLOW_UID}:0"
   volumes:
     - ./dags:/opt/airflow/dags:ro
+    # 콜백·플러그인 모듈 경로(#23). Deadline/정책 콜백은 프로세스 기동 시점에
+    # /opt/airflow/plugins 가 존재해야 import 가능(python path_importer_cache).
+    - ./dags/plugins:/opt/airflow/plugins:ro
     - ./dbt:/opt/airflow/dbt
     - airflow_logs:/opt/airflow/logs
   networks:
