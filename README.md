@@ -34,7 +34,7 @@ Verified:
 | Dev Trino catalog | `iceberg_dev` |
 | Smoke schema | `ops_smoke` |
 | dbt target | `prod` |
-| Airflow web port | `30585` |
+| Airflow web port | `AIRFLOW_PUBLIC_PORT` (default `8080`) |
 | Airflow DAG | `dbt_trino_iceberg_smoke` |
 | dbt project/profile | `elt_smoke` |
 | Bronze table | `bronze_sample_events` |
@@ -177,8 +177,12 @@ docker compose up -d
 Open Airflow:
 
 ```text
-http://localhost:30585
+http://localhost:8080
 ```
+
+Set `AIRFLOW_PUBLIC_PORT` in `.env` when using a different host port, for example
+`AIRFLOW_PUBLIC_PORT=30585`. The Compose port mapping and generated Airflow task
+log URLs use the same value.
 
 Use the credentials from `.env`.
 
