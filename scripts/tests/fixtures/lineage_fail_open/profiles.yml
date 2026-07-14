@@ -1,0 +1,13 @@
+lineage_fail_open_probe:
+  target: probe
+  outputs:
+    probe:
+      type: trino
+      method: none
+      user: lineage-probe
+      host: 127.0.0.1
+      port: 9
+      http_scheme: http
+      catalog: probe
+      schema: probe
+      threads: 1
