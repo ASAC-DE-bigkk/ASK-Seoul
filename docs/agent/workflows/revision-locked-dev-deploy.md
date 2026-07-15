@@ -57,6 +57,42 @@ generated compose override는 다섯 Airflow service에 같은 runtime source를
 
 실패한 검증은 non-zero로 끝나며 성공으로 간주하지 않는다. mount mismatch, SHA mismatch, DBT project 누락, unhealthy service는 원인을 진단한 뒤 다시 실행한다.
 
+## Failure diagnosis
+
+검증 실패를 retry하기 전에는 secret을 출력하지 않는 증거만 수집한다. `.env`, `.env.*`, API key, token, password, R2 key 값은 화면, log, report, LessonRun, issue/PR 본문에 절대 출력하지 않는다.
+
+먼저 lock 파일과 Compose 상태를 확인한다.
+
+```powershell
+Get-Content -Raw .\.runtime\dev\deployment-lock.json | ConvertFrom-Json | ConvertTo-Json -Depth 8
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps
+```
+
+실제 mount source가 lock의 runtime worktree path와 일치하는지 다섯 Airflow service에서 확인한다.
+
+```powershell
+$services = 'airflow-init','airflow-apiserver','airflow-scheduler','airflow-dag-processor','airflow-triggerer'
+foreach ($service in $services) {
+  $containerId = docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps -q $service
+  docker inspect $containerId --format '{{json .Mounts}}'
+}
+```
+
+scheduler와 apiserver 상태가 원인인지 확인할 때는 service log만 제한적으로 본다.
+
+```powershell
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-scheduler
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-apiserver
+```
+
+container 안의 Git SHA와 필수 DBT project path를 lock과 대조한다.
+
+```powershell
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dags rev-parse HEAD
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dbt rev-parse HEAD
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
+```
+
 ## Safety gate
 
 `deploy-dev.ps1`는 source root의 `dags/`와 `dbt/`를 fetch source로만 사용한다. 이 경로에는 checkout, reset, merge, clean을 수행하지 않는다. root submodule pointer도 이 로컬 dev 배포만으로 갱신하지 않는다.

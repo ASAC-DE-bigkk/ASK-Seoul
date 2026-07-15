@@ -173,6 +173,25 @@ Locked dev deployment는 다음 항목을 검증한다.
 
 Safety gate: source root `dags/`와 `dbt/`는 fetch 대상일 뿐이며 `deploy-dev.ps1`가 checkout/reset/merge/clean하지 않는다. 기존 runtime worktree가 dirty 상태면 revision 변경 전에 실패한다. 실패한 deploy 또는 verify command는 non-zero로 끝나며 retry 전에 원인을 진단해야 한다. `.env` 내용이나 secret 값은 log, report, commit, issue/PR 본문에 쓰지 않는다.
 
+실패 진단은 secret을 출력하지 않는 증거만 사용한다. `.env`, `.env.*`, API key, token, password, R2 key 값은 절대 출력하지 않는다.
+
+```powershell
+Get-Content -Raw .\.runtime\dev\deployment-lock.json | ConvertFrom-Json | ConvertTo-Json -Depth 8
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps
+
+$services = 'airflow-init','airflow-apiserver','airflow-scheduler','airflow-dag-processor','airflow-triggerer'
+foreach ($service in $services) {
+  $containerId = docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps -q $service
+  docker inspect $containerId --format '{{json .Mounts}}'
+}
+
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-scheduler
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-apiserver
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dags rev-parse HEAD
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dbt rev-parse HEAD
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
+```
+
 The nested repositories are configured as:
 
 | Path | Remote |

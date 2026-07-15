@@ -227,6 +227,24 @@ Describe 'DevDeployHarness' {
     $readme | Should Match 'deploy\.sh[\s\S]*main'
   }
 
+  It 'documents revision-locked dev deploy guardrails and diagnosis evidence' {
+    $workflow = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\..\docs\agent\workflows\revision-locked-dev-deploy.md')
+
+    $workflow | Should Match 'feature ref, branch name, SHA[\s\S]*mode'
+    $workflow | Should Match 'deployment-lock\.json'
+    $workflow | Should Match 'airflow-init[\s\S]*airflow-apiserver[\s\S]*airflow-scheduler[\s\S]*airflow-dag-processor[\s\S]*airflow-triggerer'
+    $workflow | Should Match 'checkout, reset, merge, clean'
+    $workflow | Should Match 'Failure diagnosis'
+    $workflow | Should Match 'docker compose[\s\S]*ps'
+    $workflow | Should Match 'docker inspect[\s\S]*Mounts'
+    $workflow | Should Match 'logs --tail 200 airflow-scheduler'
+    $workflow | Should Match 'logs --tail 200 airflow-apiserver'
+    $workflow | Should Match 'git -C /opt/airflow/dags rev-parse HEAD'
+    $workflow | Should Match 'git -C /opt/airflow/dbt rev-parse HEAD'
+    $workflow | Should Match '/opt/airflow/dbt/domains/traffic_weather/dbt_project\.yml'
+    $workflow | Should Match '\.env[\s\S]*secret[\s\S]*token[\s\S]*password[\s\S]*R2 key'
+  }
+
   It 'verify-dev-deploy.ps1 has no public parameters and rejects unexpected arguments' {
     $script = Get-Command (Join-Path $PSScriptRoot '..\verify-dev-deploy.ps1')
     $script.Parameters.Keys | Should BeNullOrEmpty
