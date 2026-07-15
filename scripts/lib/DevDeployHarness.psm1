@@ -35,12 +35,7 @@ function Invoke-DevHarnessGit {
     [string[]]$Arguments
   )
 
-  $output = & git -C $RepositoryPath @Arguments 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    throw "git -C $RepositoryPath $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)"
-  }
-
-  return $output
+  return Invoke-DevHarnessExternal -FilePath 'git' -Arguments (@('-C', $RepositoryPath) + $Arguments)
 }
 
 function Get-DevGitModulesUrl {
@@ -118,8 +113,19 @@ function Invoke-DevHarnessExternal {
     [string[]]$Arguments
   )
 
-  $output = & $FilePath @Arguments 2>&1
-  if ($LASTEXITCODE -ne 0) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    # Native tools frequently use stderr for progress. Preserve it as diagnostic
+    # output and determine failure exclusively from the process exit code.
+    $ErrorActionPreference = 'Continue'
+    $output = & $FilePath @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     throw "$FilePath $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)"
   }
 
