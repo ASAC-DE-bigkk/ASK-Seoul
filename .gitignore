@@ -4,6 +4,7 @@
 
 .wrangler/
 .codex/
+.runtime/
 
 logs/
 airflow_logs/
