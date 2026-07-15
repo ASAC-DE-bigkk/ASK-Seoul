@@ -29,7 +29,7 @@ try {
   Write-DevComposeOverride -Lock $lock | Out-Null
 
   Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('config', '--quiet') | Out-Null
-  Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('up', '-d', '--build') | Out-Null
+  Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('up', '-d', '--build', '--wait') | Out-Null
   & (Join-Path $PSScriptRoot 'verify-dev-deploy.ps1') | Out-Null
 
   Write-Output "requested_ref origin/dev"
