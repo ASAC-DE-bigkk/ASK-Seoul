@@ -157,6 +157,7 @@ function Ensure-DevRuntimeWorktree {
   if (-not (Test-Path $RuntimePath)) {
     Invoke-External 'git' @('-C', $RepositoryPath, 'worktree', 'add', '--detach', $RuntimePath, $sha)
   } else {
+    Assert-DevRuntimeWorktree -Path $RuntimePath
     Invoke-External 'git' @('-C', $RuntimePath, 'checkout', '--detach', $sha)
   }
   Assert-DevRuntimeWorktree -Path $RuntimePath
