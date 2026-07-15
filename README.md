@@ -55,7 +55,10 @@ Verified:
 | `dbt/elt_smoke/seeds/sample_events.csv` | Source fixture used by Airflow to simulate external API data |
 | `dags/dbt_trino_iceberg_smoke.py` | Airflow DAG for R2 raw upload, bronze load, and dbt validation |
 | `scripts/update-nested-git.sh` | Pulls the nested DAG and dbt repositories before deployment |
-| `scripts/deploy.sh` | Updates nested repos, then starts Docker Compose with rebuild |
+| `scripts/deploy.sh` | nested repo를 `origin/main` 기준으로 갱신한 뒤 Docker Compose를 rebuild 기동 |
+| `scripts/deploy-dev.ps1` | 병합된 `origin/dev` DAG/dbt revision만 locked runtime worktree로 배포 |
+| `scripts/verify-dev-deploy.ps1` | 실행 중인 locked dev deployment를 deployment lock 기준으로 검증 |
+| `docs/agent/workflows/revision-locked-dev-deploy.md` | merged dev revision 배포와 증거 기록 절차 |
 | `scripts/bootstrap-cloudflare.sh` | R2 bucket/Data Catalog bootstrap helper |
 | `scripts/check-r2-catalog-auth.sh` | Verifies the R2 Data Catalog token can access the configured warehouse |
 | `.env.example` | Required local values without secrets |
@@ -143,10 +146,55 @@ docker compose up -d --force-recreate trino
 
 ## Start Local Services
 
-Update nested DAG/dbt repositories and start services:
+`scripts/deploy.sh`는 main 기반 배포 경로다. 이 스크립트는 `scripts/update-nested-git.sh`를 실행하고, 두 nested repository 내부에서 `main`을 checkout한 뒤 `origin/main`을 fast-forward하고 Docker Compose를 rebuild 기동한다. `origin/dev`를 lock하거나 검증하지 않으므로 merged `dev` runtime validation에는 사용하지 않는다.
 
 ```bash
 ./scripts/deploy.sh
+```
+
+Merged `dev` runtime validation의 문서화된 entry point는 하나뿐이다.
+
+```powershell
+powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1
+powershell.exe -NoProfile -File ./scripts/verify-dev-deploy.ps1
+```
+
+`deploy-dev.ps1` accepts only literal `origin/dev`. It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode. 이 스크립트는 `origin/dev`를 fetch하고, `.runtime/dev/` 아래 detached runtime worktree를 준비하고, `.runtime/dev/deployment-lock.json`을 쓰고, `.runtime/dev/docker-compose.generated.yml`을 생성한 뒤 해당 override로 Docker Compose를 기동한다. `verify-dev-deploy.ps1`가 통과해야 배포를 유효한 상태로 본다.
+
+Locked dev deployment는 다음 항목을 검증한다.
+
+- `dags`와 `dbt`의 detached runtime worktree path
+- `origin/dev`에서 resolve한 두 SHA 값
+- generated compose override path
+- `airflow-init`, `airflow-apiserver`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`의 실제 Docker mount
+- `/opt/airflow/dags`와 `/opt/airflow/dbt`의 scheduler container Git head
+- 필수 DBT project file `/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml`
+- `airflow-apiserver`와 `airflow-scheduler` health
+
+Safety gate: source root `dags/` and `dbt/` paths are fetch sources only. The harness must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths. 기존 runtime worktree가 dirty 상태면 revision 변경 전에 실패한다. 실패한 deploy 또는 verify command는 non-zero로 끝나며 retry 전에 원인을 진단해야 한다. Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies.
+
+실패 진단은 secret을 출력하지 않는 증거만 사용한다. Logs must be inspected locally and redacted before terminal capture, recording, or sharing. `.env`, `.env.*`, API key, token, password, R2 key 값은 절대 출력하지 않는다.
+
+```powershell
+Get-Content -Raw .\.runtime\dev\deployment-lock.json | ConvertFrom-Json | ConvertTo-Json -Depth 8
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps
+
+$services = 'airflow-init','airflow-apiserver','airflow-scheduler','airflow-dag-processor','airflow-triggerer'
+foreach ($service in $services) {
+  $containerId = docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps -q $service
+  docker inspect $containerId --format '{{json .Mounts}}'
+}
+
+$logSecretPattern = '(?i)(secret|token|password|serviceKey|api[_-]?key|access[_-]?key|r2)'
+$logValuePattern = '(?i)([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|SERVICEKEY|API_KEY|ACCESS_KEY|R2)[A-Z0-9_]*=)\S+'
+foreach ($service in 'airflow-scheduler','airflow-apiserver') {
+  docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 $service 2>&1 |
+    Where-Object { $_ -notmatch $logSecretPattern } |
+    ForEach-Object { $_ -replace $logValuePattern, '$1[REDACTED]' }
+}
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dags rev-parse HEAD
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dbt rev-parse HEAD
+docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
 ```
 
 The nested repositories are configured as:
@@ -161,6 +209,16 @@ To update only DAG/dbt without restarting services:
 ```bash
 ./scripts/update-nested-git.sh
 ```
+
+Merged dev local validation routine:
+
+1. DAG, DBT, 관련 root harness 변경을 각 repository의 `dev` branch에 merge한다.
+2. 이 harness가 들어간 root repository branch를 최신 상태로 맞춘다.
+3. local `.env` 존재 여부만 확인하고 내용을 출력하지 않는다.
+4. root에서 `deploy-dev.ps1`를 실행한 뒤 `verify-dev-deploy.ps1`를 실행한다.
+5. `.runtime/dev/deployment-lock.json`을 확인하고 정확한 DAG SHA, DBT SHA, run id, 성공/실패 task 상태, final row count, 생성 object/table 증거를 `LessonRun.md`에 기록한다.
+
+이 feature worktree에서는 절차와 test contract만 문서화한다. 여기서 live Docker deployment를 수행했다고 주장하지 않는다.
 
 Initialize Airflow metadata and admin user:
 
