@@ -1,5 +1,61 @@
 # Task 2 Report: origin/dev worktree refresh and deploy/verify public interface
 
+## Review correction
+
+- `verify-dev-deploy.ps1` now has an explicit zero-input interface and rejects any unexpected argument before reading deployment state.
+- `Get-RunningDeploymentEvidence` no longer catches arbitrary scheduler command failures while checking the required dbt project. The scheduler probe returns explicit `exists`/`missing` evidence; only `missing` becomes `RequiredDbtProjectExists = $false`, while Docker/scheduler failures still surface with their original diagnostics.
+- Added behavior coverage for bad/missing service mount evidence and missing/unhealthy apiserver/scheduler health evidence.
+
+Correction RED command:
+
+```powershell
+powershell.exe -NoProfile -Command "Invoke-Pester ./scripts/tests/DevDeployHarness.Tests.ps1 -EnableExit"
+```
+
+Correction RED result:
+
+- Exit code: `1`
+- Passed: `14`
+- Failed: `2`
+- Failures reproduced unexpected verify arguments reaching lock loading, and scheduler dbt-project command failure being swallowed.
+
+Correction GREEN command:
+
+```powershell
+powershell.exe -NoProfile -Command "Invoke-Pester ./scripts/tests/DevDeployHarness.Tests.ps1 -EnableExit"
+```
+
+Correction GREEN result:
+
+- Exit code: `0`
+- Passed: `16`
+- Failed: `0`
+- Skipped: `0`
+- Pending: `0`
+- Inconclusive: `0`
+
+Correction parser/import check:
+
+```powershell
+powershell.exe -NoProfile -Command "& { ... Parser::ParseFile ... Import-Module ./scripts/lib/DevDeployHarness.psm1 ... }"
+```
+
+Result:
+
+- Exit code: `0`
+- Output included `parser/import ok`, `Resolve-DevRevision`, `Assert-RunningDeployment`, and `Get-RunningDeploymentEvidence`.
+
+Correction WhatIf check:
+
+```powershell
+powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1 -WhatIf
+```
+
+Result:
+
+- Exit code: `0`
+- Printed the locked `origin/dev` DAG/DBT revisions and compose override path without running a Docker mutation.
+
 ## Scope completed
 
 - Updated `scripts/lib/DevDeployHarness.psm1` with:

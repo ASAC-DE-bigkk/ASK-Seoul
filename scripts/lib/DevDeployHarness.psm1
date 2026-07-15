@@ -453,12 +453,22 @@ function Get-RunningDeploymentEvidence {
   $dagHead = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('git', '-C', '/opt/airflow/dags', 'rev-parse', 'HEAD') | Select-Object -First 1).Trim()
   $dbtHead = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('git', '-C', '/opt/airflow/dbt', 'rev-parse', 'HEAD') | Select-Object -First 1).Trim()
 
-  $projectExists = $true
-  try {
-    Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('test', '-f', $Lock.required_dbt_project) | Out-Null
+  $projectEvidence = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @(
+      'sh',
+      '-c',
+      'if test -f "$1"; then printf exists; else printf missing; fi',
+      '--',
+      $Lock.required_dbt_project
+    ) | Select-Object -First 1).Trim()
+
+  if ($projectEvidence -eq 'exists') {
+    $projectExists = $true
   }
-  catch {
+  elseif ($projectEvidence -eq 'missing') {
     $projectExists = $false
+  }
+  else {
+    throw "unexpected required dbt project probe result: $projectEvidence"
   }
 
   return @{

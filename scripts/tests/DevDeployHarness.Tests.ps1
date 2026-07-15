@@ -100,6 +100,21 @@ function New-TestServiceMounts {
   return $mounts
 }
 
+function New-TestRunningDeploymentArgs {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Lock
+  )
+
+  return @{
+    Lock = $Lock
+    ServiceMounts = (New-TestServiceMounts -Lock $Lock)
+    ContainerGitHeads = @{ dags = $Lock.dags.sha; dbt = $Lock.dbt.sha }
+    RequiredDbtProjectExists = $true
+    ServiceHealth = @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+  }
+}
+
 Describe 'DevDeployHarness' {
   It 'writes every Airflow service with the locked DAG and DBT mount' {
     $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
@@ -204,6 +219,16 @@ Describe 'DevDeployHarness' {
     $content | Should Match 'origin/dev'
   }
 
+  It 'verify-dev-deploy.ps1 has no public parameters and rejects unexpected arguments' {
+    $script = Get-Command (Join-Path $PSScriptRoot '..\verify-dev-deploy.ps1')
+    $script.Parameters.Keys | Should BeNullOrEmpty
+
+    $output = & powershell.exe -NoProfile -File $script.Source unexpected 2>&1
+    $LASTEXITCODE | Should Not Be 0
+    ($output -join [Environment]::NewLine) | Should Match 'accepts no arguments'
+    ($output -join [Environment]::NewLine) | Should Not Match 'deployment lock missing'
+  }
+
   It 'rejects a running DAG container SHA that differs from the lock' {
     $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
 
@@ -240,6 +265,96 @@ Describe 'DevDeployHarness' {
         -ContainerGitHeads @{ dags = ('a' * 40); dbt = ('b' * 40) } `
         -RequiredDbtProjectExists $false `
         -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+    }
+  }
+
+  It 'rejects a running deployment with a missing service mount set' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.ServiceMounts.Remove('airflow-triggerer')
+
+    Assert-TestThrows -Pattern 'mounts missing.*airflow-triggerer' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects a running deployment with a bad service mount path' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.ServiceMounts['airflow-scheduler'] = @(
+      @{ Destination = '/opt/airflow/dags'; Source = 'C:\wrong-dags' },
+      @{ Destination = '/opt/airflow/plugins'; Source = (Join-Path $lock.dags.worktree_path 'plugins') },
+      @{ Destination = '/opt/airflow/dbt'; Source = $lock.dbt.worktree_path }
+    )
+
+    Assert-TestThrows -Pattern 'mount mismatch.*/opt/airflow/dags' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects missing apiserver health evidence' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.ServiceHealth.Remove('airflow-apiserver')
+
+    Assert-TestThrows -Pattern 'health missing.*airflow-apiserver' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects unhealthy scheduler health evidence' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.ServiceHealth['airflow-scheduler'] = 'starting'
+
+    Assert-TestThrows -Pattern 'airflow-scheduler.*not healthy.*starting' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'preserves scheduler command failures while probing the required dbt project' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+
+    Mock Invoke-DevDockerCompose {
+      param(
+        [string]$RootPath,
+        $Lock,
+        [string[]]$Arguments
+      )
+
+      if (($Arguments -join ' ') -match 'test -f') {
+        throw 'docker compose exec failed: scheduler not running'
+      }
+
+      switch -Regex ($Arguments -join ' ') {
+        'ps -q airflow-' { return 'container-id' }
+        'git -C /opt/airflow/dags rev-parse HEAD' { return $lock.dags.sha }
+        'git -C /opt/airflow/dbt rev-parse HEAD' { return $lock.dbt.sha }
+        default { throw "unexpected docker compose call: $($Arguments -join ' ')" }
+      }
+    } -ModuleName DevDeployHarness
+
+    Mock Invoke-DevHarnessExternal {
+      param(
+        [string]$FilePath,
+        [string[]]$Arguments
+      )
+
+      switch -Regex ($Arguments -join ' ') {
+        'json \.Mounts' {
+          return ConvertTo-Json @(
+            @{ Destination = '/opt/airflow/dags'; Source = $lock.dags.worktree_path },
+            @{ Destination = '/opt/airflow/plugins'; Source = (Join-Path $lock.dags.worktree_path 'plugins') },
+            @{ Destination = '/opt/airflow/dbt'; Source = $lock.dbt.worktree_path }
+          )
+        }
+        'State\.Health' { return 'healthy' }
+        default { throw "unexpected docker call: $($Arguments -join ' ')" }
+      }
+    } -ModuleName DevDeployHarness
+
+    Assert-TestThrows -Pattern 'scheduler not running' -ScriptBlock {
+      Get-RunningDeploymentEvidence -RootPath 'C:\repo' -Lock $lock
     }
   }
 }

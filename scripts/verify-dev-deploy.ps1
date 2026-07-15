@@ -1,6 +1,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($args.Count -gt 0) {
+  throw "verify-dev-deploy.ps1 accepts no arguments; unexpected arguments: $($args -join ', ')"
+}
+
 Import-Module (Join-Path $PSScriptRoot 'lib\DevDeployHarness.psm1') -Force -DisableNameChecking
 
 $root = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')).TrimEnd('\', '/')
