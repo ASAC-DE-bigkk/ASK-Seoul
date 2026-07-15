@@ -50,8 +50,8 @@ generated compose override는 다섯 Airflow service에 같은 runtime source를
 `verify-dev-deploy.ps1`는 lock 파일을 기준으로 실행 중인 Docker 상태를 다시 읽는다. 성공 조건은 다음과 같다.
 
 - 다섯 Airflow service의 실제 Docker mount source가 lock의 runtime worktree path와 일치한다.
-- scheduler container 내부의 `/opt/airflow/dags` Git HEAD가 `dags.sha`와 일치한다.
-- scheduler container 내부의 `/opt/airflow/dbt` Git HEAD가 `dbt.sha`와 일치한다.
+- host runtime DAG/DBT worktree의 Git HEAD와 clean 상태가 각각 `dags.sha`, `dbt.sha`와 일치한다.
+- Docker inspect로 다섯 Airflow service의 bind mount source가 같은 host runtime worktree인지 검증한다.
 - `/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml`이 scheduler container 안에 존재한다.
 - `airflow-apiserver`와 `airflow-scheduler` health가 `healthy`다.
 
@@ -90,11 +90,11 @@ foreach ($service in 'airflow-scheduler','airflow-apiserver') {
 }
 ```
 
-container 안의 Git SHA와 필수 DBT project path를 lock과 대조한다.
+Windows bind-mounted Git worktree는 container에서 host gitdir를 해석할 수 없으므로, SHA는 host runtime worktree에서 검증하고 container에서는 bind mount source와 필수 DBT project path를 검증한다.
 
 ```powershell
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dags rev-parse HEAD
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dbt rev-parse HEAD
+git -C .\.runtime\dev\dags rev-parse HEAD
+git -C .\.runtime\dev\dbt rev-parse HEAD
 docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
 ```
 

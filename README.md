@@ -167,7 +167,7 @@ Locked dev deployment는 다음 항목을 검증한다.
 - `origin/dev`에서 resolve한 두 SHA 값
 - generated compose override path
 - `airflow-init`, `airflow-apiserver`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`의 실제 Docker mount
-- `/opt/airflow/dags`와 `/opt/airflow/dbt`의 scheduler container Git head
+- host runtime DAG/DBT worktree Git head와 Docker bind mount source
 - 필수 DBT project file `/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml`
 - `airflow-apiserver`와 `airflow-scheduler` health
 
@@ -192,8 +192,8 @@ foreach ($service in 'airflow-scheduler','airflow-apiserver') {
     Where-Object { $_ -notmatch $logSecretPattern } |
     ForEach-Object { $_ -replace $logValuePattern, '$1[REDACTED]' }
 }
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dags rev-parse HEAD
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dbt rev-parse HEAD
+git -C .\.runtime\dev\dags rev-parse HEAD
+git -C .\.runtime\dev\dbt rev-parse HEAD
 docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
 ```
 

@@ -14,7 +14,7 @@ $evidence = Get-RunningDeploymentEvidence -RootPath $root -Lock $lock
 Assert-RunningDeployment `
   -Lock $lock `
   -ServiceMounts $evidence.ServiceMounts `
-  -ContainerGitHeads $evidence.ContainerGitHeads `
+  -RuntimeGitHeads $evidence.RuntimeGitHeads `
   -RequiredDbtProjectExists $evidence.RequiredDbtProjectExists `
   -ServiceHealth $evidence.ServiceHealth
 

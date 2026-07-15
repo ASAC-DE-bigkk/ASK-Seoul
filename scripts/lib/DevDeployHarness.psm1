@@ -440,7 +440,7 @@ function Assert-RunningDeployment {
     [hashtable]$ServiceMounts,
 
     [Parameter(Mandatory = $true)]
-    [hashtable]$ContainerGitHeads,
+    [hashtable]$RuntimeGitHeads,
 
     [Parameter(Mandatory = $true)]
     [bool]$RequiredDbtProjectExists,
@@ -457,20 +457,20 @@ function Assert-RunningDeployment {
     Assert-DeploymentMounts -Lock $Lock -Mounts $ServiceMounts[$service]
   }
 
-  if (-not $ContainerGitHeads.ContainsKey('dags')) {
-    throw 'DAG container SHA missing from running deployment evidence'
+  if (-not $RuntimeGitHeads.ContainsKey('dags')) {
+    throw 'DAG runtime SHA missing from running deployment evidence'
   }
 
-  if ($ContainerGitHeads['dags'] -ne $Lock.dags.sha) {
-    throw "DAG container SHA mismatch: expected $($Lock.dags.sha), got $($ContainerGitHeads['dags'])"
+  if ($RuntimeGitHeads['dags'] -ne $Lock.dags.sha) {
+    throw "DAG runtime SHA mismatch: expected $($Lock.dags.sha), got $($RuntimeGitHeads['dags'])"
   }
 
-  if (-not $ContainerGitHeads.ContainsKey('dbt')) {
-    throw 'DBT container SHA missing from running deployment evidence'
+  if (-not $RuntimeGitHeads.ContainsKey('dbt')) {
+    throw 'DBT runtime SHA missing from running deployment evidence'
   }
 
-  if ($ContainerGitHeads['dbt'] -ne $Lock.dbt.sha) {
-    throw "DBT container SHA mismatch: expected $($Lock.dbt.sha), got $($ContainerGitHeads['dbt'])"
+  if ($RuntimeGitHeads['dbt'] -ne $Lock.dbt.sha) {
+    throw "DBT runtime SHA mismatch: expected $($Lock.dbt.sha), got $($RuntimeGitHeads['dbt'])"
   }
 
   if (-not $RequiredDbtProjectExists) {
@@ -581,8 +581,10 @@ function Get-RunningDeploymentEvidence {
     $serviceMounts[$service] = Get-DevDockerServiceMounts -RootPath $RootPath -Lock $Lock -Service $service
   }
 
-  $dagHead = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('git', '-C', '/opt/airflow/dags', 'rev-parse', 'HEAD') | Select-Object -First 1).Trim()
-  $dbtHead = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('git', '-C', '/opt/airflow/dbt', 'rev-parse', 'HEAD') | Select-Object -First 1).Trim()
+  Assert-DevRuntimeWorktree -Path $Lock.dags.worktree_path
+  Assert-DevRuntimeWorktree -Path $Lock.dbt.worktree_path
+  $dagHead = (Invoke-DevHarnessGit -RepositoryPath $Lock.dags.worktree_path -Arguments @('rev-parse', 'HEAD') | Select-Object -First 1).Trim()
+  $dbtHead = (Invoke-DevHarnessGit -RepositoryPath $Lock.dbt.worktree_path -Arguments @('rev-parse', 'HEAD') | Select-Object -First 1).Trim()
 
   $projectEvidence = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @(
       'sh',
@@ -604,7 +606,7 @@ function Get-RunningDeploymentEvidence {
 
   return @{
     ServiceMounts = $serviceMounts
-    ContainerGitHeads = @{ dags = $dagHead; dbt = $dbtHead }
+    RuntimeGitHeads = @{ dags = $dagHead; dbt = $dbtHead }
     RequiredDbtProjectExists = $projectExists
     ServiceHealth = @{
       'airflow-apiserver' = Get-DevDockerServiceHealth -RootPath $RootPath -Lock $Lock -Service 'airflow-apiserver'
