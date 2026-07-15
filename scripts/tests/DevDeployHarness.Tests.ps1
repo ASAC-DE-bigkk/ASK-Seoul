@@ -275,7 +275,7 @@ Describe 'DevDeployHarness' {
     $script = Get-Command (Join-Path $PSScriptRoot '..\deploy-dev.ps1')
     $content = Get-Content -Raw -LiteralPath $script.Source
 
-    $composeUpIndex = $content.IndexOf("Invoke-DevDockerCompose -RootPath `$root -Lock `$lock -Arguments @('up', '-d', '--build')")
+    $composeUpIndex = $content.IndexOf("Invoke-DevDockerCompose -RootPath `$root -Lock `$lock -Arguments @('up', '-d', '--build', '--wait')")
     $verifyIndex = $content.IndexOf("& (Join-Path `$PSScriptRoot 'verify-dev-deploy.ps1')")
     $successIndex = $content.IndexOf('Write-Output "requested_ref origin/dev"')
     $whatIfReturnIndex = $content.IndexOf('return')
@@ -284,6 +284,13 @@ Describe 'DevDeployHarness' {
     $verifyIndex | Should BeGreaterThan $composeUpIndex
     $successIndex | Should BeGreaterThan $verifyIndex
     $verifyIndex | Should BeGreaterThan $whatIfReturnIndex
+  }
+
+  It 'queries completed airflow-init mounts with docker compose ps --all' {
+    $module = Get-Module DevDeployHarness
+    $source = Get-Content -Raw -LiteralPath $module.Path
+
+    $source | Should Match 'Get-DevDockerServiceMounts[\s\S]*?Arguments @\(''ps'', ''-aq'', \$Service\)'
   }
 
   It 'rejects a second deployment mutex and removes the lock file after release' {
@@ -439,7 +446,7 @@ Describe 'DevDeployHarness' {
       }
 
       switch -Regex ($Arguments -join ' ') {
-        'ps -q airflow-' { return 'container-id' }
+        'ps -aq airflow-' { return 'container-id' }
         'git -C /opt/airflow/dags rev-parse HEAD' { return $lock.dags.sha }
         'git -C /opt/airflow/dbt rev-parse HEAD' { return $lock.dbt.sha }
         default { throw "unexpected docker compose call: $($Arguments -join ' ')" }

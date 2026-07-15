@@ -523,7 +523,7 @@ function Get-DevDockerServiceMounts {
     [string]$Service
   )
 
-  $containerId = (Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments @('ps', '-q', $Service) | Select-Object -First 1).Trim()
+  $containerId = (Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments @('ps', '-aq', $Service) | Select-Object -First 1).Trim()
   if (-not $containerId) {
     throw "container id missing for service $Service"
   }
