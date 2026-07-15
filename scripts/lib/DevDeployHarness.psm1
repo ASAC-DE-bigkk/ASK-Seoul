@@ -34,6 +34,23 @@ function Invoke-DevHarnessGit {
   return $output
 }
 
+function Invoke-DevHarnessExternal {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$FilePath,
+
+    [Parameter(Mandatory = $true)]
+    [string[]]$Arguments
+  )
+
+  $output = & $FilePath @Arguments 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "$FilePath $($Arguments -join ' ') failed: $($output -join [Environment]::NewLine)"
+  }
+
+  return $output
+}
+
 function Resolve-DevRevision {
   param(
     [Parameter(Mandatory = $true)]
@@ -45,10 +62,17 @@ function Resolve-DevRevision {
       }
       return $true
     })]
-    [string]$Ref = 'origin/dev'
+    [string]$Ref = 'origin/dev',
+
+    [switch]$SkipFetch
   )
 
   $root = Normalize-DevHarnessPath -Path $RootPath
+  if (-not $SkipFetch) {
+    Invoke-DevHarnessGit -RepositoryPath (Join-Path $root 'dags') -Arguments @('fetch', 'origin', 'dev') | Out-Null
+    Invoke-DevHarnessGit -RepositoryPath (Join-Path $root 'dbt') -Arguments @('fetch', 'origin', 'dev') | Out-Null
+  }
+
   $dagSha = (Invoke-DevHarnessGit -RepositoryPath (Join-Path $root 'dags') -Arguments @('rev-parse', '--verify', $Ref)).Trim()
   $dbtSha = (Invoke-DevHarnessGit -RepositoryPath (Join-Path $root 'dbt') -Arguments @('rev-parse', '--verify', $Ref)).Trim()
 
@@ -88,6 +112,7 @@ function New-DeploymentLock {
       sha = $DbtSha
       worktree_path = (Join-Path $runtime 'dbt')
     }
+    deployment_lock_path = (Join-Path $runtime 'deployment-lock.json')
     compose_override_path = (Join-Path $runtime 'docker-compose.generated.yml')
     required_dbt_project = '/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml'
   }
@@ -193,6 +218,39 @@ function Write-DevComposeOverride {
   return $path
 }
 
+function Write-DeploymentLockAtomically {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Lock
+  )
+
+  $path = $Lock.deployment_lock_path
+  $directory = Split-Path -Parent $path
+  if (-not (Test-Path -LiteralPath $directory)) {
+    New-Item -ItemType Directory -Path $directory -Force | Out-Null
+  }
+
+  $tempPath = "$path.tmp.$PID.$([Guid]::NewGuid().ToString('N'))"
+  $Lock | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $tempPath -Encoding UTF8
+  Move-Item -LiteralPath $tempPath -Destination $path -Force
+  return $path
+}
+
+function Read-DeploymentLock {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath
+  )
+
+  $root = Normalize-DevHarnessPath -Path $RootPath
+  $path = Join-Path $root '.runtime\dev\deployment-lock.json'
+  if (-not (Test-Path -LiteralPath $path)) {
+    throw "deployment lock missing at $path"
+  }
+
+  return Get-Content -Raw -LiteralPath $path | ConvertFrom-Json
+}
+
 function Assert-DevRuntimeWorktree {
   param(
     [Parameter(Mandatory = $true)]
@@ -225,6 +283,7 @@ function Assert-DeploymentMounts {
 
   $expected = @{
     '/opt/airflow/dags' = (Normalize-DevHarnessPath -Path $Lock.dags.worktree_path)
+    '/opt/airflow/plugins' = (Normalize-DevHarnessPath -Path (Join-Path $Lock.dags.worktree_path 'plugins'))
     '/opt/airflow/dbt' = (Normalize-DevHarnessPath -Path $Lock.dbt.worktree_path)
   }
 
@@ -241,12 +300,189 @@ function Assert-DeploymentMounts {
   }
 }
 
+function Assert-RunningDeployment {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$ServiceMounts,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$ContainerGitHeads,
+
+    [Parameter(Mandatory = $true)]
+    [bool]$RequiredDbtProjectExists,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$ServiceHealth
+  )
+
+  foreach ($service in $script:AirflowServices) {
+    if (-not $ServiceMounts.ContainsKey($service)) {
+      throw "deployment mounts missing for service $service"
+    }
+
+    Assert-DeploymentMounts -Lock $Lock -Mounts $ServiceMounts[$service]
+  }
+
+  if (-not $ContainerGitHeads.ContainsKey('dags')) {
+    throw 'DAG container SHA missing from running deployment evidence'
+  }
+
+  if ($ContainerGitHeads['dags'] -ne $Lock.dags.sha) {
+    throw "DAG container SHA mismatch: expected $($Lock.dags.sha), got $($ContainerGitHeads['dags'])"
+  }
+
+  if (-not $ContainerGitHeads.ContainsKey('dbt')) {
+    throw 'DBT container SHA missing from running deployment evidence'
+  }
+
+  if ($ContainerGitHeads['dbt'] -ne $Lock.dbt.sha) {
+    throw "DBT container SHA mismatch: expected $($Lock.dbt.sha), got $($ContainerGitHeads['dbt'])"
+  }
+
+  if (-not $RequiredDbtProjectExists) {
+    throw "required dbt project missing: $($Lock.required_dbt_project)"
+  }
+
+  foreach ($service in 'airflow-apiserver', 'airflow-scheduler') {
+    if (-not $ServiceHealth.ContainsKey($service)) {
+      throw "service health missing for $service"
+    }
+
+    if ($ServiceHealth[$service] -ne 'healthy') {
+      throw "service $service is not healthy: $($ServiceHealth[$service])"
+    }
+  }
+}
+
+function Invoke-DevDockerCompose {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [string[]]$Arguments
+  )
+
+  $root = Normalize-DevHarnessPath -Path $RootPath
+  $composeArgs = @('-f', (Join-Path $root 'docker-compose.yml'), '-f', $Lock.compose_override_path) + $Arguments
+  Push-Location -LiteralPath $root
+  try {
+    return Invoke-DevHarnessExternal -FilePath 'docker' -Arguments (@('compose') + $composeArgs)
+  }
+  finally {
+    Pop-Location
+  }
+}
+
+function Get-DevDockerServiceMounts {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Service
+  )
+
+  $containerId = (Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments @('ps', '-q', $Service) | Select-Object -First 1).Trim()
+  if (-not $containerId) {
+    throw "container id missing for service $Service"
+  }
+
+  $json = (Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{json .Mounts}}') | Select-Object -First 1)
+  return @($json | ConvertFrom-Json)
+}
+
+function Get-DevDockerServiceHealth {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Service
+  )
+
+  $containerId = (Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments @('ps', '-q', $Service) | Select-Object -First 1).Trim()
+  if (-not $containerId) {
+    throw "container id missing for service $Service"
+  }
+
+  return (Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}') | Select-Object -First 1).Trim()
+}
+
+function Invoke-DevSchedulerCommand {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [string[]]$Command
+  )
+
+  return Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments (@('exec', '-T', 'airflow-scheduler') + $Command)
+}
+
+function Get-RunningDeploymentEvidence {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock
+  )
+
+  $serviceMounts = @{}
+  foreach ($service in $script:AirflowServices) {
+    $serviceMounts[$service] = Get-DevDockerServiceMounts -RootPath $RootPath -Lock $Lock -Service $service
+  }
+
+  $dagHead = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('git', '-C', '/opt/airflow/dags', 'rev-parse', 'HEAD') | Select-Object -First 1).Trim()
+  $dbtHead = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('git', '-C', '/opt/airflow/dbt', 'rev-parse', 'HEAD') | Select-Object -First 1).Trim()
+
+  $projectExists = $true
+  try {
+    Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('test', '-f', $Lock.required_dbt_project) | Out-Null
+  }
+  catch {
+    $projectExists = $false
+  }
+
+  return @{
+    ServiceMounts = $serviceMounts
+    ContainerGitHeads = @{ dags = $dagHead; dbt = $dbtHead }
+    RequiredDbtProjectExists = $projectExists
+    ServiceHealth = @{
+      'airflow-apiserver' = Get-DevDockerServiceHealth -RootPath $RootPath -Lock $Lock -Service 'airflow-apiserver'
+      'airflow-scheduler' = Get-DevDockerServiceHealth -RootPath $RootPath -Lock $Lock -Service 'airflow-scheduler'
+    }
+  }
+}
+
 Export-ModuleMember -Function @(
   'Resolve-DevRevision',
   'Ensure-DevRuntimeWorktree',
   'New-DeploymentLock',
   'New-DevComposeOverrideText',
   'Write-DevComposeOverride',
+  'Write-DeploymentLockAtomically',
+  'Read-DeploymentLock',
   'Assert-DevRuntimeWorktree',
-  'Assert-DeploymentMounts'
+  'Assert-DeploymentMounts',
+  'Assert-RunningDeployment',
+  'Invoke-DevDockerCompose',
+  'Get-RunningDeploymentEvidence'
 )

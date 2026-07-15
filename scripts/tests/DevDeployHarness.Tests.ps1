@@ -61,6 +61,45 @@ function Get-ServiceBlock {
   return $match.Value
 }
 
+function Assert-TestThrows {
+  param(
+    [Parameter(Mandatory = $true)]
+    [scriptblock]$ScriptBlock,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Pattern
+  )
+
+  $thrown = $null
+  try {
+    & $ScriptBlock
+  }
+  catch {
+    $thrown = $_
+  }
+
+  $thrown | Should Not BeNullOrEmpty
+  $thrown.Exception.Message | Should Match $Pattern
+}
+
+function New-TestServiceMounts {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Lock
+  )
+
+  $mounts = @{}
+  foreach ($service in 'airflow-init', 'airflow-apiserver', 'airflow-scheduler', 'airflow-dag-processor', 'airflow-triggerer') {
+    $mounts[$service] = @(
+      @{ Destination = '/opt/airflow/dags'; Source = $Lock.dags.worktree_path },
+      @{ Destination = '/opt/airflow/plugins'; Source = (Join-Path $Lock.dags.worktree_path 'plugins') },
+      @{ Destination = '/opt/airflow/dbt'; Source = $Lock.dbt.worktree_path }
+    )
+  }
+
+  return $mounts
+}
+
 Describe 'DevDeployHarness' {
   It 'writes every Airflow service with the locked DAG and DBT mount' {
     $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
@@ -151,5 +190,56 @@ Describe 'DevDeployHarness' {
     $thrown.Exception.Message | Should Match 'dirty'
     $actualSha = (Invoke-TestGit -RepositoryPath $runtime -Arguments @('rev-parse', 'HEAD')).Trim()
     $actualSha | Should Be $revisions.FirstSha
+  }
+
+  It 'deploy-dev.ps1 has no ref parameter and uses literal origin/dev' {
+    $script = Get-Command (Join-Path $PSScriptRoot '..\deploy-dev.ps1')
+    ($script.Parameters.Keys -contains 'Ref') | Should Be $false
+    ($script.Parameters.Keys -contains 'Branch') | Should Be $false
+    ($script.Parameters.Keys -contains 'Sha') | Should Be $false
+    ($script.Parameters.Keys -contains 'FeatureRef') | Should Be $false
+
+    $content = Get-Content -Raw -LiteralPath $script.Source
+    $content | Should Match 'Resolve-DevRevision'
+    $content | Should Match 'origin/dev'
+  }
+
+  It 'rejects a running DAG container SHA that differs from the lock' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+
+    Assert-TestThrows -Pattern 'DAG.*SHA.*mismatch' -ScriptBlock {
+      Assert-RunningDeployment `
+        -Lock $lock `
+        -ServiceMounts (New-TestServiceMounts -Lock $lock) `
+        -ContainerGitHeads @{ dags = ('c' * 40); dbt = ('b' * 40) } `
+        -RequiredDbtProjectExists $true `
+        -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+    }
+  }
+
+  It 'rejects a running DBT container SHA that differs from the lock' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+
+    Assert-TestThrows -Pattern 'DBT.*SHA.*mismatch' -ScriptBlock {
+      Assert-RunningDeployment `
+        -Lock $lock `
+        -ServiceMounts (New-TestServiceMounts -Lock $lock) `
+        -ContainerGitHeads @{ dags = ('a' * 40); dbt = ('d' * 40) } `
+        -RequiredDbtProjectExists $true `
+        -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+    }
+  }
+
+  It 'rejects a running deployment with a missing required dbt project' {
+    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+
+    Assert-TestThrows -Pattern 'dbt project.*missing' -ScriptBlock {
+      Assert-RunningDeployment `
+        -Lock $lock `
+        -ServiceMounts (New-TestServiceMounts -Lock $lock) `
+        -ContainerGitHeads @{ dags = ('a' * 40); dbt = ('b' * 40) } `
+        -RequiredDbtProjectExists $false `
+        -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+    }
   }
 }
