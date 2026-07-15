@@ -109,7 +109,7 @@ function New-TestRunningDeploymentArgs {
   return @{
     Lock = $Lock
     ServiceMounts = (New-TestServiceMounts -Lock $Lock)
-    ContainerGitHeads = @{ dags = $Lock.dags.sha; dbt = $Lock.dbt.sha }
+    RuntimeGitHeads = @{ dags = $Lock.dags.sha; dbt = $Lock.dbt.sha }
     RequiredDbtProjectExists = $true
     ServiceHealth = @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
   }
@@ -293,6 +293,15 @@ Describe 'DevDeployHarness' {
     $source | Should Match 'Get-DevDockerServiceMounts[\s\S]*?Arguments @\(''ps'', ''-aq'', \$Service\)'
   }
 
+  It 'verifies runtime SHA on the host instead of container Git metadata' {
+    $module = Get-Module DevDeployHarness
+    $source = Get-Content -Raw -LiteralPath $module.Path
+
+    $source | Should Match 'Invoke-DevHarnessGit -RepositoryPath \$Lock\.dags\.worktree_path -Arguments @\(''rev-parse'', ''HEAD''\)'
+    $source | Should Match 'Invoke-DevHarnessGit -RepositoryPath \$Lock\.dbt\.worktree_path -Arguments @\(''rev-parse'', ''HEAD''\)'
+    $source | Should Not Match "Invoke-DevSchedulerCommand[\s\S]*?@\('git', '-C', '/opt/airflow/dags'"
+  }
+
   It 'rejects a second deployment mutex and removes the lock file after release' {
     $root = Join-Path $TestDrive 'mutex-root'
     $first = New-DevDeploymentMutex -RootPath $root
@@ -332,8 +341,8 @@ Describe 'DevDeployHarness' {
     $workflow | Should Match 'Where-Object \{ \$_ -notmatch \$logSecretPattern \}'
     $workflow | Should Match 'ForEach-Object[\s\S]*\[REDACTED\]'
     $workflow | Should Not Match '(?m)^docker compose[^\r\n]* logs --tail 200 airflow-'
-    $workflow | Should Match 'git -C /opt/airflow/dags rev-parse HEAD'
-    $workflow | Should Match 'git -C /opt/airflow/dbt rev-parse HEAD'
+    $workflow | Should Match 'git -C \.\\.runtime\\dev\\dags rev-parse HEAD'
+    $workflow | Should Match 'git -C \.\\.runtime\\dev\\dbt rev-parse HEAD'
     $workflow | Should Match '/opt/airflow/dbt/domains/traffic_weather/dbt_project\.yml'
     $workflow | Should Match 'Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies'
   }
@@ -348,27 +357,27 @@ Describe 'DevDeployHarness' {
     ($output -join [Environment]::NewLine) | Should Not Match 'deployment lock missing'
   }
 
-  It 'rejects a running DAG container SHA that differs from the lock' {
+  It 'rejects a runtime DAG SHA that differs from the lock' {
     $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
 
     Assert-TestThrows -Pattern 'DAG.*SHA.*mismatch' -ScriptBlock {
       Assert-RunningDeployment `
         -Lock $lock `
         -ServiceMounts (New-TestServiceMounts -Lock $lock) `
-        -ContainerGitHeads @{ dags = ('c' * 40); dbt = ('b' * 40) } `
+        -RuntimeGitHeads @{ dags = ('c' * 40); dbt = ('b' * 40) } `
         -RequiredDbtProjectExists $true `
         -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
     }
   }
 
-  It 'rejects a running DBT container SHA that differs from the lock' {
+  It 'rejects a runtime DBT SHA that differs from the lock' {
     $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
 
     Assert-TestThrows -Pattern 'DBT.*SHA.*mismatch' -ScriptBlock {
       Assert-RunningDeployment `
         -Lock $lock `
         -ServiceMounts (New-TestServiceMounts -Lock $lock) `
-        -ContainerGitHeads @{ dags = ('a' * 40); dbt = ('d' * 40) } `
+        -RuntimeGitHeads @{ dags = ('a' * 40); dbt = ('d' * 40) } `
         -RequiredDbtProjectExists $true `
         -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
     }
@@ -381,7 +390,7 @@ Describe 'DevDeployHarness' {
       Assert-RunningDeployment `
         -Lock $lock `
         -ServiceMounts (New-TestServiceMounts -Lock $lock) `
-        -ContainerGitHeads @{ dags = ('a' * 40); dbt = ('b' * 40) } `
+        -RuntimeGitHeads @{ dags = ('a' * 40); dbt = ('b' * 40) } `
         -RequiredDbtProjectExists $false `
         -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
     }
@@ -447,10 +456,18 @@ Describe 'DevDeployHarness' {
 
       switch -Regex ($Arguments -join ' ') {
         'ps -aq airflow-' { return 'container-id' }
-        'git -C /opt/airflow/dags rev-parse HEAD' { return $lock.dags.sha }
-        'git -C /opt/airflow/dbt rev-parse HEAD' { return $lock.dbt.sha }
         default { throw "unexpected docker compose call: $($Arguments -join ' ')" }
       }
+    } -ModuleName DevDeployHarness
+
+    Mock Invoke-DevHarnessGit {
+      param([string]$RepositoryPath, [string[]]$Arguments)
+      if (($Arguments -join ' ') -eq 'status --porcelain') { return @() }
+      if (($Arguments -join ' ') -eq 'rev-parse HEAD') {
+        if ($RepositoryPath -eq $lock.dags.worktree_path) { return $lock.dags.sha }
+        if ($RepositoryPath -eq $lock.dbt.worktree_path) { return $lock.dbt.sha }
+      }
+      throw "unexpected git call: $RepositoryPath $($Arguments -join ' ')"
     } -ModuleName DevDeployHarness
 
     Mock Invoke-DevHarnessExternal {
