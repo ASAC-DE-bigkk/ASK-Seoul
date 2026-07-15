@@ -219,6 +219,14 @@ Describe 'DevDeployHarness' {
     $content | Should Match 'origin/dev'
   }
 
+  It 'documents deploy-dev as origin/dev entry point and deploy.sh as main-based path' {
+    $readme = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\..\README.md')
+
+    $readme | Should Match 'deploy-dev\.ps1'
+    $readme | Should Match 'origin/dev'
+    $readme | Should Match 'deploy\.sh[\s\S]*main'
+  }
+
   It 'verify-dev-deploy.ps1 has no public parameters and rejects unexpected arguments' {
     $script = Get-Command (Join-Path $PSScriptRoot '..\verify-dev-deploy.ps1')
     $script.Parameters.Keys | Should BeNullOrEmpty
