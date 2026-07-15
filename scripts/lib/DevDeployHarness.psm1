@@ -39,6 +39,12 @@ function Resolve-DevRevision {
     [Parameter(Mandatory = $true)]
     [string]$RootPath,
 
+    [ValidateScript({
+      if ($_ -ne 'origin/dev') {
+        throw 'Resolve-DevRevision only accepts the literal merged dev ref origin/dev.'
+      }
+      return $true
+    })]
     [string]$Ref = 'origin/dev'
   )
 
@@ -111,6 +117,8 @@ function Ensure-DevRuntimeWorktree {
     Invoke-DevHarnessGit -RepositoryPath $repository -Arguments @('worktree', 'add', '--detach', $worktree, $Sha) | Out-Null
   }
   else {
+    Assert-DevRuntimeWorktree -Path $worktree
+    Invoke-DevHarnessGit -RepositoryPath $worktree -Arguments @('checkout', '--detach', $Sha) | Out-Null
     $actualSha = (Invoke-DevHarnessGit -RepositoryPath $worktree -Arguments @('rev-parse', 'HEAD')).Trim()
     if ($actualSha -ne $Sha) {
       throw "runtime worktree revision mismatch at ${worktree}: expected $Sha, got $actualSha"
