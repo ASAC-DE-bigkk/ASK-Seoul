@@ -355,6 +355,7 @@ Describe 'DevDeployHarness' {
     $LASTEXITCODE | Should Not Be 0
     ($output -join [Environment]::NewLine) | Should Match 'accepts no arguments'
     ($output -join [Environment]::NewLine) | Should Not Match 'deployment lock missing'
+    (Get-Content -Raw -LiteralPath $script.Source) | Should Match 'RuntimeGitHeads \$evidence\.RuntimeGitHeads'
   }
 
   It 'rejects a runtime DAG SHA that differs from the lock' {
