@@ -1,0 +1,29 @@
+# Traffic/Weather 개발 lineage 전용 overlay.
+# base docker-compose.yml만 사용하면 기존 commerce lineage 계약이 그대로 유지된다.
+x-traffic-weather-lineage-environment: &traffic-weather-lineage-environment
+  AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://marquez-api:5000", "endpoint": "api/v1/lineage"}'
+  AIRFLOW__OPENLINEAGE__NAMESPACE: "ask-seoul-dev-airflow"
+  AIRFLOW__OPENLINEAGE__SELECTIVE_ENABLE: "true"
+  AIRFLOW__OPENLINEAGE__DISABLE_SOURCE_CODE: "true"
+  AIRFLOW__OPENLINEAGE__INCLUDE_FULL_TASK_INFO: "false"
+  AIRFLOW__OPENLINEAGE__DEBUG_MODE: "false"
+  ASK_SEOUL_DBT_OPENLINEAGE_ENABLED: "true"
+  ASK_SEOUL_DBT_OPENLINEAGE_URL: "http://marquez-api:5000"
+  ASK_SEOUL_DBT_OPENLINEAGE_ENDPOINT: "api/v1/lineage"
+  ASK_SEOUL_DBT_OPENLINEAGE_NAMESPACE: "ask-seoul-dev-dbt"
+
+services:
+  airflow-init:
+    environment: *traffic-weather-lineage-environment
+
+  airflow-apiserver:
+    environment: *traffic-weather-lineage-environment
+
+  airflow-scheduler:
+    environment: *traffic-weather-lineage-environment
+
+  airflow-dag-processor:
+    environment: *traffic-weather-lineage-environment
+
+  airflow-triggerer:
+    environment: *traffic-weather-lineage-environment

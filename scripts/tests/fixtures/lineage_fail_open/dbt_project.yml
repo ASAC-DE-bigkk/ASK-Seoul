@@ -1,0 +1,7 @@
+name: lineage_fail_open_probe
+version: "1.0.0"
+config-version: 2
+profile: lineage_fail_open_probe
+model-paths: ["models"]
+flags:
+  send_anonymous_usage_stats: false

@@ -24,11 +24,11 @@ RUN pip install --no-cache-dir \
         "pyiceberg[s3fs]>=0.11.1,<0.12" \
         "pyarrow>=12" \
         "astronomer-cosmos[openlineage]>=1.8,<2" \
-        "apache-airflow-providers-openlineage>=2,<3" \
+        "apache-airflow-providers-openlineage==2.19.0" \
         "apache-airflow-providers-trino>=6,<7" \
     && python -m venv "${DBT_VENV}" \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir --upgrade pip \
     && "${DBT_VENV}/bin/pip" install --no-cache-dir \
         "dbt-core>=1.10,<1.11" \
         "dbt-trino>=1.10,<1.11" \
-        "openlineage-dbt>=1.47,<2"
+        "openlineage-dbt==1.51.0"
