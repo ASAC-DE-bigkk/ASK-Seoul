@@ -1,26 +1,28 @@
-# Task 3 correction report: review findings only
+# Task 3 second review correction report
 
 ## 변경 요약
 
-- `docs/agent/workflows/revision-locked-dev-deploy.md`: `Failure diagnosis` 섹션을 추가했다. safe evidence command로 deployment lock JSON, compose ps, 다섯 Airflow service의 실제 mount, scheduler/apiserver logs, container 내부 DAG/DBT Git SHA, 필수 DBT project path를 확인하도록 문서화했다. `.env`, `.env.*`, API key, token, password, R2 key 값은 절대 출력하지 말라고 명시했다.
-- `README.md`: merged `dev` runtime validation 설명 아래에 같은 실패 진단 command 묶음을 추가했다.
-- `scripts/tests/DevDeployHarness.Tests.ps1`: workflow 문서를 직접 읽는 documentation-contract test를 추가했다. feature/SHA input 미지원, `deployment-lock.json`, 다섯 Airflow service, source root checkout/reset/merge/clean 금지, failure diagnosis, secret 보호, mount/log/SHA/DBT project evidence를 대표 guardrail로 검증한다.
+- `README.md`: raw `docker compose logs` 출력 예시를 제거하고, log는 로컬에서 먼저 확인한 뒤 redaction/filter pipeline을 통과한 내용만 terminal capture/recording/sharing 하도록 바꿨다.
+- `docs/agent/workflows/revision-locked-dev-deploy.md`: `deploy-dev.ps1`가 literal `origin/dev`만 받으며 feature-ref, branch-name, arbitrary-ref, SHA input mode가 없다는 negative promise를 명시했다. source root `dags/`, `dbt/`에서는 checkout/reset/merge/clean/worktree mutation을 하지 않는다는 promise도 정확히 적었다.
+- `scripts/tests/DevDeployHarness.Tests.ps1`: keyword presence 중심 assertion을 줄이고, raw log command 금지, redaction pipeline 필수, literal `origin/dev` only, feature/SHA input mode 부재, source root mutation 금지, secret/`.env` 값 기록 금지를 계약으로 검증하도록 강화했다.
+- Scope는 요청된 네 파일(`README.md`, workflow doc, Pester test, 이 report)로 제한했다.
 
 ## Review finding 처리
 
-- failure-diagnosis 문서 누락: 수정 완료.
-- Pester documentation contract가 README만 확인하던 문제: workflow 파일까지 읽고 대표 guardrail promise를 확인하도록 강화 완료.
-- 코드/root submodule 변경 금지: 준수. `README.md`, workflow 문서, Pester test, 이 report만 변경했다.
+- raw log dump instruction: 수정 완료. executable example은 `Where-Object`와 `ForEach-Object` redaction을 거친 output만 emit한다.
+- exact negative promises: 수정 완료. 테스트는 unsupported ref parameters와 `Resolve-DevRevision`의 ref override 사용을 금지하고, 문서의 exact no-feature/no-SHA/no-source-root-mutation/no-secret-recording 문구를 확인한다.
+- live deployment: 수행하지 않았다.
+- secret read/print: 수행하지 않았다.
 
 ## Verification
 
+- RED check: `powershell.exe -NoProfile -Command "Invoke-Pester ./scripts/tests/DevDeployHarness.Tests.ps1 -EnableExit"` -> Failed: 1 before doc correction. Failure was the strengthened docs contract rejecting the old workflow text.
 - Pester: `powershell.exe -NoProfile -Command "Invoke-Pester ./scripts/tests/DevDeployHarness.Tests.ps1 -EnableExit"` -> Passed: 18, Failed: 0.
-- Parser/import: PowerShell AST parse for `scripts/deploy-dev.ps1`, `scripts/verify-dev-deploy.ps1`, `scripts/lib/DevDeployHarness.psm1`, `scripts/tests/DevDeployHarness.Tests.ps1` -> `PowerShell parser OK`; exported commands `Resolve-DevRevision`, `New-DeploymentLock`, `Assert-RunningDeployment` 확인.
-- WhatIf: `powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1 -WhatIf` -> `requested_ref origin/dev`, `dags 9f1731c962bc209e98f43a298d6af69bd243d1da`, `dbt 9f1731c962bc209e98f43a298d6af69bd243d1da`, compose override path 출력.
-- Compose config: `.runtime/dev/docker-compose.generated.yml`가 없어 `docker compose ... config --quiet`는 실행하지 않고 `SKIP: .runtime/dev/docker-compose.generated.yml not present`로 확인.
-- Whitespace: `git diff --check` -> exit 0. Git이 세 파일의 LF/CRLF 변환 경고를 출력했지만 whitespace error는 없었다.
+- Parser/import: direct PowerShell AST parse for `scripts/deploy-dev.ps1`, `scripts/verify-dev-deploy.ps1`, `scripts/lib/DevDeployHarness.psm1`, `scripts/tests/DevDeployHarness.Tests.ps1`; module import exported `Assert-DeploymentMounts`, `Assert-DevRuntimeWorktree`, `Assert-RunningDeployment`, `Ensure-DevRuntimeWorktree`, `Get-RunningDeploymentEvidence`, `Invoke-DevDockerCompose`, `New-DeploymentLock`, `New-DevComposeOverrideText`, `Read-DeploymentLock`, `Resolve-DevRevision`, `Write-DeploymentLockAtomically`, `Write-DevComposeOverride`; output ended with `PowerShell parser OK`.
+- WhatIf: `powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1 -WhatIf` -> `requested_ref origin/dev`, `dags 9f1731c962bc209e98f43a298d6af69bd243d1da`, `dbt 9f1731c962bc209e98f43a298d6af69bd243d1da`, compose override path output. No live deployment.
+- Whitespace: `git diff --check` -> exit 0; Git emitted LF/CRLF normalization warnings only.
 
 ## Limitation
 
 - 사용자 지시대로 live Docker deployment는 수행하지 않았다.
-- `.env` 또는 secret 값은 출력하거나 기록하지 않았다.
+- `.env` 또는 secret 값은 읽거나 출력하거나 기록하지 않았다.

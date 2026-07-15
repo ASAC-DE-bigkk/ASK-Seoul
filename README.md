@@ -159,7 +159,7 @@ powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1
 powershell.exe -NoProfile -File ./scripts/verify-dev-deploy.ps1
 ```
 
-`deploy-dev.ps1`는 `dags`와 `dbt` 모두 merged `origin/dev` revision만 받는다. feature-ref, branch, SHA mode는 없다. 이 스크립트는 `origin/dev`를 fetch하고, `.runtime/dev/` 아래 detached runtime worktree를 준비하고, `.runtime/dev/deployment-lock.json`을 쓰고, `.runtime/dev/docker-compose.generated.yml`을 생성한 뒤 해당 override로 Docker Compose를 기동한다. `verify-dev-deploy.ps1`가 통과해야 배포를 유효한 상태로 본다.
+`deploy-dev.ps1` accepts only literal `origin/dev`. It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode. 이 스크립트는 `origin/dev`를 fetch하고, `.runtime/dev/` 아래 detached runtime worktree를 준비하고, `.runtime/dev/deployment-lock.json`을 쓰고, `.runtime/dev/docker-compose.generated.yml`을 생성한 뒤 해당 override로 Docker Compose를 기동한다. `verify-dev-deploy.ps1`가 통과해야 배포를 유효한 상태로 본다.
 
 Locked dev deployment는 다음 항목을 검증한다.
 
@@ -171,9 +171,9 @@ Locked dev deployment는 다음 항목을 검증한다.
 - 필수 DBT project file `/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml`
 - `airflow-apiserver`와 `airflow-scheduler` health
 
-Safety gate: source root `dags/`와 `dbt/`는 fetch 대상일 뿐이며 `deploy-dev.ps1`가 checkout/reset/merge/clean하지 않는다. 기존 runtime worktree가 dirty 상태면 revision 변경 전에 실패한다. 실패한 deploy 또는 verify command는 non-zero로 끝나며 retry 전에 원인을 진단해야 한다. `.env` 내용이나 secret 값은 log, report, commit, issue/PR 본문에 쓰지 않는다.
+Safety gate: source root `dags/` and `dbt/` paths are fetch sources only. The harness must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths. 기존 runtime worktree가 dirty 상태면 revision 변경 전에 실패한다. 실패한 deploy 또는 verify command는 non-zero로 끝나며 retry 전에 원인을 진단해야 한다. Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies.
 
-실패 진단은 secret을 출력하지 않는 증거만 사용한다. `.env`, `.env.*`, API key, token, password, R2 key 값은 절대 출력하지 않는다.
+실패 진단은 secret을 출력하지 않는 증거만 사용한다. Logs must be inspected locally and redacted before terminal capture, recording, or sharing. `.env`, `.env.*`, API key, token, password, R2 key 값은 절대 출력하지 않는다.
 
 ```powershell
 Get-Content -Raw .\.runtime\dev\deployment-lock.json | ConvertFrom-Json | ConvertTo-Json -Depth 8
@@ -185,8 +185,13 @@ foreach ($service in $services) {
   docker inspect $containerId --format '{{json .Mounts}}'
 }
 
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-scheduler
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-apiserver
+$logSecretPattern = '(?i)(secret|token|password|serviceKey|api[_-]?key|access[_-]?key|r2)'
+$logValuePattern = '(?i)([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|SERVICEKEY|API_KEY|ACCESS_KEY|R2)[A-Z0-9_]*=)\S+'
+foreach ($service in 'airflow-scheduler','airflow-apiserver') {
+  docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 $service 2>&1 |
+    Where-Object { $_ -notmatch $logSecretPattern } |
+    ForEach-Object { $_ -replace $logValuePattern, '$1[REDACTED]' }
+}
 docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dags rev-parse HEAD
 docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler git -C /opt/airflow/dbt rev-parse HEAD
 docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml

@@ -13,7 +13,7 @@ powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1
 powershell.exe -NoProfile -File ./scripts/verify-dev-deploy.ps1
 ```
 
-`deploy-dev.ps1`는 `origin/dev`만 받는다. feature ref, branch name, SHA 인자를 받는 mode는 없다. `verify-dev-deploy.ps1`도 public argument를 받지 않는다.
+`deploy-dev.ps1` accepts only literal `origin/dev`. It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode. `verify-dev-deploy.ps1`도 public argument를 받지 않는다.
 
 ## What is locked
 
@@ -59,7 +59,7 @@ generated compose override는 다섯 Airflow service에 같은 runtime source를
 
 ## Failure diagnosis
 
-검증 실패를 retry하기 전에는 secret을 출력하지 않는 증거만 수집한다. `.env`, `.env.*`, API key, token, password, R2 key 값은 화면, log, report, LessonRun, issue/PR 본문에 절대 출력하지 않는다.
+검증 실패를 retry하기 전에는 secret을 출력하지 않는 증거만 수집한다. Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies.
 
 먼저 lock 파일과 Compose 상태를 확인한다.
 
@@ -78,11 +78,16 @@ foreach ($service in $services) {
 }
 ```
 
-scheduler와 apiserver 상태가 원인인지 확인할 때는 service log만 제한적으로 본다.
+scheduler와 apiserver 상태가 원인인지 확인할 때는 log를 로컬에서 먼저 확인한다. Logs must be inspected locally and redacted before terminal capture, recording, or sharing. 아래 예시는 secret 이름이 포함된 줄을 버리고, 남은 줄에서도 secret-like key/value를 `[REDACTED]`로 치환한 뒤에만 출력한다.
 
 ```powershell
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-scheduler
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 airflow-apiserver
+$logSecretPattern = '(?i)(secret|token|password|serviceKey|api[_-]?key|access[_-]?key|r2)'
+$logValuePattern = '(?i)([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|SERVICEKEY|API_KEY|ACCESS_KEY|R2)[A-Z0-9_]*=)\S+'
+foreach ($service in 'airflow-scheduler','airflow-apiserver') {
+  docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 $service 2>&1 |
+    Where-Object { $_ -notmatch $logSecretPattern } |
+    ForEach-Object { $_ -replace $logValuePattern, '$1[REDACTED]' }
+}
 ```
 
 container 안의 Git SHA와 필수 DBT project path를 lock과 대조한다.
@@ -95,7 +100,7 @@ docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generate
 
 ## Safety gate
 
-`deploy-dev.ps1`는 source root의 `dags/`와 `dbt/`를 fetch source로만 사용한다. 이 경로에는 checkout, reset, merge, clean을 수행하지 않는다. root submodule pointer도 이 로컬 dev 배포만으로 갱신하지 않는다.
+`deploy-dev.ps1`에서 source root `dags/` and `dbt/` paths are fetch sources only. The harness must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths. root submodule pointer도 이 로컬 dev 배포만으로 갱신하지 않는다.
 
 runtime worktree가 이미 존재하고 dirty 상태면 revision을 바꾸기 전에 실패한다. dirty runtime worktree를 자동 정리하지 않는 이유는 이전 검증 흔적이나 사람이 만든 변경을 덮어쓰지 않기 위해서다.
 

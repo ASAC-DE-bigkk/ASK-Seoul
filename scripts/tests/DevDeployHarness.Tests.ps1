@@ -209,14 +209,13 @@ Describe 'DevDeployHarness' {
 
   It 'deploy-dev.ps1 has no ref parameter and uses literal origin/dev' {
     $script = Get-Command (Join-Path $PSScriptRoot '..\deploy-dev.ps1')
-    ($script.Parameters.Keys -contains 'Ref') | Should Be $false
-    ($script.Parameters.Keys -contains 'Branch') | Should Be $false
-    ($script.Parameters.Keys -contains 'Sha') | Should Be $false
-    ($script.Parameters.Keys -contains 'FeatureRef') | Should Be $false
+    @($script.Parameters.Keys) | Should Be @('WhatIf')
 
     $content = Get-Content -Raw -LiteralPath $script.Source
-    $content | Should Match 'Resolve-DevRevision'
-    $content | Should Match 'origin/dev'
+    $content | Should Match '\$revision = Resolve-DevRevision -RootPath \$root -SkipFetch:\$WhatIf'
+    $content | Should Match 'WhatIf: requested_ref origin/dev'
+    $content | Should Not Match '(?i)\bparam\s*\([^)]*\$(Ref|Branch|Sha|FeatureRef)\b'
+    $content | Should Not Match '(?i)Resolve-DevRevision[^\r\n]*-(Ref|Branch|Sha|FeatureRef)\b'
   }
 
   It 'documents deploy-dev as origin/dev entry point and deploy.sh as main-based path' {
@@ -230,19 +229,24 @@ Describe 'DevDeployHarness' {
   It 'documents revision-locked dev deploy guardrails and diagnosis evidence' {
     $workflow = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot '..\..\docs\agent\workflows\revision-locked-dev-deploy.md')
 
-    $workflow | Should Match 'feature ref, branch name, SHA[\s\S]*mode'
+    $workflow | Should Match 'deploy-dev\.ps1` accepts only literal `origin/dev`'
+    $workflow | Should Match 'It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode'
     $workflow | Should Match 'deployment-lock\.json'
     $workflow | Should Match 'airflow-init[\s\S]*airflow-apiserver[\s\S]*airflow-scheduler[\s\S]*airflow-dag-processor[\s\S]*airflow-triggerer'
-    $workflow | Should Match 'checkout, reset, merge, clean'
+    $workflow | Should Match 'source root `dags/` and `dbt/` paths are fetch sources only'
+    $workflow | Should Match 'must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths'
     $workflow | Should Match 'Failure diagnosis'
     $workflow | Should Match 'docker compose[\s\S]*ps'
     $workflow | Should Match 'docker inspect[\s\S]*Mounts'
-    $workflow | Should Match 'logs --tail 200 airflow-scheduler'
-    $workflow | Should Match 'logs --tail 200 airflow-apiserver'
+    $workflow | Should Match 'Logs must be inspected locally and redacted before terminal capture, recording, or sharing'
+    $workflow | Should Match '\$logSecretPattern'
+    $workflow | Should Match 'Where-Object \{ \$_ -notmatch \$logSecretPattern \}'
+    $workflow | Should Match 'ForEach-Object[\s\S]*\[REDACTED\]'
+    $workflow | Should Not Match '(?m)^docker compose[^\r\n]* logs --tail 200 airflow-'
     $workflow | Should Match 'git -C /opt/airflow/dags rev-parse HEAD'
     $workflow | Should Match 'git -C /opt/airflow/dbt rev-parse HEAD'
     $workflow | Should Match '/opt/airflow/dbt/domains/traffic_weather/dbt_project\.yml'
-    $workflow | Should Match '\.env[\s\S]*secret[\s\S]*token[\s\S]*password[\s\S]*R2 key'
+    $workflow | Should Match 'Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies'
   }
 
   It 'verify-dev-deploy.ps1 has no public parameters and rejects unexpected arguments' {
