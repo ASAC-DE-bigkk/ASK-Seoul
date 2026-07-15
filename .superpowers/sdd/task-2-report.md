@@ -2,6 +2,99 @@
 
 ## Review correction
 
+## Final broad-review blocker correction
+
+- Added source child repository validation before `Resolve-DevRevision` can fetch or resolve `origin/dev`.
+  - `dags/` and `dbt/` must each resolve `git rev-parse --show-toplevel` to exactly their own child path.
+  - Each child `origin` URL must match the corresponding `.gitmodules` URL, allowing only case and trailing slash differences.
+  - Empty child directories inside the root repo now fail before accidentally resolving the root repository SHA.
+- Added a nonblocking deployment mutex at `.runtime/dev/deploy.lock`.
+  - The deploy path acquires it before `.runtime/dev` state mutation and releases it in `finally`.
+  - A second acquisition fails clearly with `deployment already in progress`.
+  - Release removes `deploy.lock`.
+- Updated `deploy-dev.ps1` so compose `up -d --build` is not the success boundary.
+  - Non-WhatIf deploy now invokes `verify-dev-deploy.ps1` through the public script path after compose up.
+  - Success output is printed only after verification returns successfully.
+  - `-WhatIf` still returns before mutex acquisition, runtime writes, Docker mutation, or container verification.
+
+Correction RED command:
+
+```powershell
+powershell.exe -NoProfile -Command "Invoke-Pester ./scripts/tests/DevDeployHarness.Tests.ps1 -EnableExit"
+```
+
+Correction RED result:
+
+- Exit code: `1`
+- Passed: `16`
+- Failed: `6`
+- Expected failures covered:
+  - uninitialized child directories reached `fetch origin dev` instead of failing child-worktree validation,
+  - child origin mismatch reached `fetch origin dev` instead of failing `.gitmodules` URL validation,
+  - `deploy-dev.ps1` had no verifier call after compose up,
+  - deployment mutex functions did not exist yet.
+
+Correction GREEN command:
+
+```powershell
+powershell.exe -NoProfile -Command "Invoke-Pester ./scripts/tests/DevDeployHarness.Tests.ps1 -EnableExit"
+```
+
+Correction GREEN result:
+
+- Exit code: `0`
+- Passed: `22`
+- Failed: `0`
+- Skipped: `0`
+- Pending: `0`
+- Inconclusive: `0`
+
+Correction parser/import command:
+
+```powershell
+@'
+$ErrorActionPreference = 'Stop'
+$files = @(
+  './scripts/lib/DevDeployHarness.psm1',
+  './scripts/deploy-dev.ps1',
+  './scripts/verify-dev-deploy.ps1',
+  './scripts/tests/DevDeployHarness.Tests.ps1'
+)
+foreach ($file in $files) {
+  $tokens = $null
+  $errors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+  if ($errors.Count -gt 0) {
+    $errors | ForEach-Object { Write-Error $_ }
+    exit 1
+  }
+}
+Import-Module ./scripts/lib/DevDeployHarness.psm1 -Force -DisableNameChecking
+Get-Command Resolve-DevRevision,New-DevDeploymentMutex,Close-DevDeploymentMutex,Assert-RunningDeployment,Get-RunningDeploymentEvidence | ForEach-Object { $_.Name }
+'@ | powershell.exe -NoProfile -Command -
+```
+
+Correction parser/import result:
+
+- Exit code: `0`
+
+Correction WhatIf command:
+
+```powershell
+powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1 -WhatIf
+```
+
+Correction WhatIf result:
+
+- Exit code: `1`
+- Failed before fetch/runtime mutation with:
+
+```text
+dags source repository at ...\dags is not an initialized child Git worktree; git top-level resolved to ...\sample-30-revision-locked-dev-deploy-harness
+```
+
+This is the expected clean failure for the current worktree because root `dags/` and `dbt/` are uninitialized child directories.
+
 - `verify-dev-deploy.ps1` now has an explicit zero-input interface and rejects any unexpected argument before reading deployment state.
 - `Get-RunningDeploymentEvidence` no longer catches arbitrary scheduler command failures while checking the required dbt project. The scheduler probe returns explicit `exists`/`missing` evidence; only `missing` becomes `RequiredDbtProjectExists = $false`, while Docker/scheduler failures still surface with their original diagnostics.
 - Added behavior coverage for bad/missing service mount evidence and missing/unhealthy apiserver/scheduler health evidence.

@@ -142,6 +142,48 @@ Describe 'DevDeployHarness' {
     $thrown.Exception.Message | Should Match 'origin/dev'
   }
 
+  It 'rejects uninitialized child repositories before fetch or rev-parse' {
+    $root = Join-Path $TestDrive 'root-with-empty-children'
+    New-Item -ItemType Directory -Path (Join-Path $root 'dags') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $root 'dbt') -Force | Out-Null
+    & git -C $root init | Out-Null
+    @'
+[submodule "dags"]
+	path = dags
+	url = https://github.com/ASAC-DE-bigkk/ASAC-DAG
+[submodule "dbt"]
+	path = dbt
+	url = https://github.com/ASAC-DE-bigkk/ASAC-DBT
+'@ | Set-Content -LiteralPath (Join-Path $root '.gitmodules') -Encoding ASCII
+
+    Assert-TestThrows -Pattern 'dags.*initialized child Git worktree' -ScriptBlock {
+      Resolve-DevRevision -RootPath $root
+    }
+  }
+
+  It 'rejects child origin remotes that differ from .gitmodules' {
+    $root = Join-Path $TestDrive 'root-with-remote-mismatch'
+    New-Item -ItemType Directory -Path $root -Force | Out-Null
+    @'
+[submodule "dags"]
+	path = dags
+	url = https://github.com/ASAC-DE-bigkk/ASAC-DAG
+[submodule "dbt"]
+	path = dbt
+	url = https://github.com/ASAC-DE-bigkk/ASAC-DBT
+'@ | Set-Content -LiteralPath (Join-Path $root '.gitmodules') -Encoding ASCII
+    foreach ($child in 'dags', 'dbt') {
+      New-Item -ItemType Directory -Path (Join-Path $root $child) -Force | Out-Null
+      & git -C (Join-Path $root $child) init | Out-Null
+    }
+    & git -C (Join-Path $root 'dags') remote add origin https://github.com/example/wrong-dag | Out-Null
+    & git -C (Join-Path $root 'dbt') remote add origin https://github.com/ASAC-DE-bigkk/ASAC-DBT | Out-Null
+
+    Assert-TestThrows -Pattern 'dags.*origin.*does not match .gitmodules' -ScriptBlock {
+      Resolve-DevRevision -RootPath $root
+    }
+  }
+
   It 'rejects a dirty runtime worktree before compose starts' {
     $thrown = $null
     try {
@@ -216,6 +258,35 @@ Describe 'DevDeployHarness' {
     $content | Should Match 'WhatIf: requested_ref origin/dev'
     $content | Should Not Match '(?i)\bparam\s*\([^)]*\$(Ref|Branch|Sha|FeatureRef)\b'
     $content | Should Not Match '(?i)Resolve-DevRevision[^\r\n]*-(Ref|Branch|Sha|FeatureRef)\b'
+  }
+
+  It 'deploy-dev.ps1 verifies after compose up before reporting success' {
+    $script = Get-Command (Join-Path $PSScriptRoot '..\deploy-dev.ps1')
+    $content = Get-Content -Raw -LiteralPath $script.Source
+
+    $composeUpIndex = $content.IndexOf("Invoke-DevDockerCompose -RootPath `$root -Lock `$lock -Arguments @('up', '-d', '--build')")
+    $verifyIndex = $content.IndexOf("& (Join-Path `$PSScriptRoot 'verify-dev-deploy.ps1')")
+    $successIndex = $content.IndexOf('Write-Output "requested_ref origin/dev"')
+    $whatIfReturnIndex = $content.IndexOf('return')
+
+    $composeUpIndex | Should BeGreaterThan -1
+    $verifyIndex | Should BeGreaterThan $composeUpIndex
+    $successIndex | Should BeGreaterThan $verifyIndex
+    $verifyIndex | Should BeGreaterThan $whatIfReturnIndex
+  }
+
+  It 'rejects a second deployment mutex and removes the lock file after release' {
+    $root = Join-Path $TestDrive 'mutex-root'
+    $first = New-DevDeploymentMutex -RootPath $root
+    $lockPath = Join-Path $root '.runtime\dev\deploy.lock'
+
+    Test-Path -LiteralPath $lockPath | Should Be $true
+    Assert-TestThrows -Pattern 'deployment already in progress' -ScriptBlock {
+      New-DevDeploymentMutex -RootPath $root
+    }
+
+    Close-DevDeploymentMutex -Mutex $first
+    Test-Path -LiteralPath $lockPath | Should Be $false
   }
 
   It 'documents deploy-dev as origin/dev entry point and deploy.sh as main-based path' {

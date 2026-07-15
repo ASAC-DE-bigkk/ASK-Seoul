@@ -17,6 +17,15 @@ function Normalize-DevHarnessPath {
   return [System.IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
 }
 
+function Normalize-DevRemoteUrl {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Url
+  )
+
+  return $Url.Trim().TrimEnd('\', '/').ToLowerInvariant()
+}
+
 function Invoke-DevHarnessGit {
   param(
     [Parameter(Mandatory = $true)]
@@ -32,6 +41,72 @@ function Invoke-DevHarnessGit {
   }
 
   return $output
+}
+
+function Get-DevGitModulesUrl {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ChildName
+  )
+
+  $gitmodules = Join-Path $RootPath '.gitmodules'
+  if (-not (Test-Path -LiteralPath $gitmodules)) {
+    throw ".gitmodules missing at $gitmodules"
+  }
+
+  $url = (Invoke-DevHarnessExternal -FilePath 'git' -Arguments @('config', '-f', $gitmodules, '--get', "submodule.$ChildName.url") | Select-Object -First 1).Trim()
+  if (-not $url) {
+    throw ".gitmodules URL missing for submodule $ChildName"
+  }
+
+  return $url
+}
+
+function Assert-DevGitTopLevel {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedPath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Label
+  )
+
+  $expected = Normalize-DevHarnessPath -Path $ExpectedPath
+  if (-not (Test-Path -LiteralPath $expected -PathType Container)) {
+    throw "$Label source repository missing at $expected"
+  }
+
+  $topLevel = (Invoke-DevHarnessGit -RepositoryPath $Path -Arguments @('rev-parse', '--show-toplevel') | Select-Object -First 1).Trim()
+  $actual = Normalize-DevHarnessPath -Path $topLevel
+  if (-not [string]::Equals($actual, $expected, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "$Label source repository at $expected is not an initialized child Git worktree; git top-level resolved to $actual"
+  }
+}
+
+function Assert-DevSourceRepository {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ChildName
+  )
+
+  $root = Normalize-DevHarnessPath -Path $RootPath
+  $childPath = Join-Path $root $ChildName
+  Assert-DevGitTopLevel -Path $childPath -ExpectedPath $childPath -Label $ChildName
+
+  $expectedUrl = Get-DevGitModulesUrl -RootPath $root -ChildName $ChildName
+  $actualUrl = (Invoke-DevHarnessGit -RepositoryPath $childPath -Arguments @('remote', 'get-url', 'origin') | Select-Object -First 1).Trim()
+  if ((Normalize-DevRemoteUrl -Url $actualUrl) -ne (Normalize-DevRemoteUrl -Url $expectedUrl)) {
+    throw "$ChildName origin remote does not match .gitmodules: expected $expectedUrl, got $actualUrl"
+  }
 }
 
 function Invoke-DevHarnessExternal {
@@ -68,6 +143,9 @@ function Resolve-DevRevision {
   )
 
   $root = Normalize-DevHarnessPath -Path $RootPath
+  Assert-DevSourceRepository -RootPath $root -ChildName 'dags'
+  Assert-DevSourceRepository -RootPath $root -ChildName 'dbt'
+
   if (-not $SkipFetch) {
     Invoke-DevHarnessGit -RepositoryPath (Join-Path $root 'dags') -Arguments @('fetch', 'origin', 'dev') | Out-Null
     Invoke-DevHarnessGit -RepositoryPath (Join-Path $root 'dbt') -Arguments @('fetch', 'origin', 'dev') | Out-Null
@@ -118,6 +196,51 @@ function New-DeploymentLock {
   }
 }
 
+function New-DevDeploymentMutex {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath
+  )
+
+  $root = Normalize-DevHarnessPath -Path $RootPath
+  $runtime = Join-Path $root '.runtime\dev'
+  if (-not (Test-Path -LiteralPath $runtime)) {
+    New-Item -ItemType Directory -Path $runtime -Force | Out-Null
+  }
+
+  $lockPath = Join-Path $runtime 'deploy.lock'
+  try {
+    $stream = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+    $writer = [System.Text.UTF8Encoding]::new($false)
+    $bytes = $writer.GetBytes("pid=$PID$([Environment]::NewLine)created_at_utc=$([DateTime]::UtcNow.ToString('o'))$([Environment]::NewLine)")
+    $stream.Write($bytes, 0, $bytes.Length)
+    $stream.Flush()
+  }
+  catch [System.IO.IOException] {
+    throw "deployment already in progress; lock exists at $lockPath"
+  }
+
+  return [pscustomobject]@{
+    LockPath = $lockPath
+    Stream = $stream
+  }
+}
+
+function Close-DevDeploymentMutex {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Mutex
+  )
+
+  if ($Mutex.Stream) {
+    $Mutex.Stream.Dispose()
+  }
+
+  if ($Mutex.LockPath -and (Test-Path -LiteralPath $Mutex.LockPath)) {
+    Remove-Item -LiteralPath $Mutex.LockPath -Force
+  }
+}
+
 function Ensure-DevRuntimeWorktree {
   param(
     [Parameter(Mandatory = $true)]
@@ -133,6 +256,8 @@ function Ensure-DevRuntimeWorktree {
 
   $repository = Normalize-DevHarnessPath -Path $RepositoryPath
   $worktree = Normalize-DevHarnessPath -Path $WorktreePath
+  Assert-DevGitTopLevel -Path $repository -ExpectedPath $repository -Label 'runtime source'
+
   $parent = Split-Path -Parent $worktree
   if (-not (Test-Path -LiteralPath $parent)) {
     New-Item -ItemType Directory -Path $parent -Force | Out-Null
@@ -486,6 +611,8 @@ Export-ModuleMember -Function @(
   'Resolve-DevRevision',
   'Ensure-DevRuntimeWorktree',
   'New-DeploymentLock',
+  'New-DevDeploymentMutex',
+  'Close-DevDeploymentMutex',
   'New-DevComposeOverrideText',
   'Write-DevComposeOverride',
   'Write-DeploymentLockAtomically',

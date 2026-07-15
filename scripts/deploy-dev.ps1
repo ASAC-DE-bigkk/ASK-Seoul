@@ -19,16 +19,27 @@ if ($WhatIf) {
   return
 }
 
-Ensure-DevRuntimeWorktree -RepositoryPath (Join-Path $root 'dags') -WorktreePath $lock.dags.worktree_path -Sha $lock.dags.sha | Out-Null
-Ensure-DevRuntimeWorktree -RepositoryPath (Join-Path $root 'dbt') -WorktreePath $lock.dbt.worktree_path -Sha $lock.dbt.sha | Out-Null
-Write-DeploymentLockAtomically -Lock $lock | Out-Null
-Write-DevComposeOverride -Lock $lock | Out-Null
+$mutex = $null
+try {
+  $mutex = New-DevDeploymentMutex -RootPath $root
 
-Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('config', '--quiet') | Out-Null
-Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('up', '-d', '--build') | Out-Null
+  Ensure-DevRuntimeWorktree -RepositoryPath (Join-Path $root 'dags') -WorktreePath $lock.dags.worktree_path -Sha $lock.dags.sha | Out-Null
+  Ensure-DevRuntimeWorktree -RepositoryPath (Join-Path $root 'dbt') -WorktreePath $lock.dbt.worktree_path -Sha $lock.dbt.sha | Out-Null
+  Write-DeploymentLockAtomically -Lock $lock | Out-Null
+  Write-DevComposeOverride -Lock $lock | Out-Null
 
-Write-Output "requested_ref origin/dev"
-Write-Output "dags $($lock.dags.sha) -> $($lock.dags.worktree_path)"
-Write-Output "dbt $($lock.dbt.sha) -> $($lock.dbt.worktree_path)"
-Write-Output "deployment lock $($lock.deployment_lock_path)"
-Write-Output "compose override $($lock.compose_override_path)"
+  Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('config', '--quiet') | Out-Null
+  Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('up', '-d', '--build') | Out-Null
+  & (Join-Path $PSScriptRoot 'verify-dev-deploy.ps1') | Out-Null
+
+  Write-Output "requested_ref origin/dev"
+  Write-Output "dags $($lock.dags.sha) -> $($lock.dags.worktree_path)"
+  Write-Output "dbt $($lock.dbt.sha) -> $($lock.dbt.worktree_path)"
+  Write-Output "deployment lock $($lock.deployment_lock_path)"
+  Write-Output "compose override $($lock.compose_override_path)"
+}
+finally {
+  if ($null -ne $mutex) {
+    Close-DevDeploymentMutex -Mutex $mutex
+  }
+}
