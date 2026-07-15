@@ -184,6 +184,17 @@ Describe 'DevDeployHarness' {
     }
   }
 
+  It 'preserves native stderr when a command exits successfully' {
+    $module = Get-Module DevDeployHarness
+
+    $output = & $module {
+      $ErrorActionPreference = 'Stop'
+      Invoke-DevHarnessExternal -FilePath 'cmd.exe' -Arguments @('/c', 'echo fetch-progress 1>&2')
+    }
+
+    ($output -join [Environment]::NewLine) | Should Match 'fetch-progress'
+  }
+
   It 'rejects a dirty runtime worktree before compose starts' {
     $thrown = $null
     try {
