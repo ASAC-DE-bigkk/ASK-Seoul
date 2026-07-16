@@ -7,3 +7,6 @@
 	path = dbt
 	url = https://github.com/ASAC-DE-bigkk/ASAC-DBT
 	branch = main
+[submodule "dashboard"]
+	path = dashboard
+	url = https://github.com/ASAC-DE-bigkk/ASK-Seoul-Dashboard.git
