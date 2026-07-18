@@ -25,9 +25,8 @@ x-airflow-common: &airflow-common
     TRINO_HOST: trino
     TRINO_PORT: "8080"
     TRINO_USER: airflow
-    # OpenLineage → Marquez(lineage 프로파일). Cosmos/dbt run 태스크가 물리 relation 기반
-    # lineage 이벤트를 marquez-api 로 방출한다. marquez 미기동(프로파일 off) 시 방출은
-    # fail-open(경고만, 태스크 실패 아님). 배경: dags/domains/commerce/docs/cosmos.md §6.
+    # OpenLineage → Marquez. Cosmos/dbt run 태스크가 물리 relation 기반 lineage 이벤트를
+    # marquez-api 로 방출한다. 일시 장애 시 방출은 fail-open(경고만, 태스크 실패 아님).
     AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://marquez-api:5000", "endpoint": "api/v1/lineage"}'
     AIRFLOW__OPENLINEAGE__NAMESPACE: "commerce-elt"
   user: "${AIRFLOW_UID}:0"
@@ -64,12 +63,11 @@ services:
   # (serving-postgres 폐기 2026-07-14 — 서빙 레이어 개편: gold 는 Iceberg 카탈로그(dbt),
   #  서빙은 D1(SQLite) 선별 export 예정. 정책: dags/domains/commerce/docs/PROJECT.md §4)
 
-  # ── OpenLineage 백엔드(Marquez) — `lineage` 프로파일 전용 ──────────────────────
-  # 기동: docker compose --profile lineage up -d (core 스택엔 영향 없음).
+  # ── OpenLineage 백엔드(Marquez) — local dev에서 항상 기동 ─────────────────────
   # UI: http://127.0.0.1:3000 · API: http://127.0.0.1:5000. 배경: dags/domains/commerce/docs/cosmos.md §6.
   marquez-db:
-    profiles: ["lineage"]
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${MARQUEZ_POSTGRES_USER:-marquez}
       POSTGRES_PASSWORD: ${MARQUEZ_POSTGRES_PASSWORD:-marquez}   # dev 기본값 — prod 는 .env 로 교체
@@ -86,12 +84,13 @@ services:
       - elt_net
 
   marquez-api:
-    profiles: ["lineage"]
     # OpenLineage 수집 API + lineage 저장. 기동 시 flyway 마이그레이션 자동 수행.
     image: marquezproject/marquez:0.50.0
+    restart: unless-stopped
     environment:
       MARQUEZ_PORT: "5000"
       MARQUEZ_ADMIN_PORT: "5001"
+      SEARCH_ENABLED: "false"
       POSTGRES_HOST: marquez-db
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${MARQUEZ_POSTGRES_DB:-marquez}
@@ -104,13 +103,19 @@ services:
     depends_on:
       marquez-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:5001/healthcheck >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     networks:
       - elt_net
 
   marquez-web:
-    profiles: ["lineage"]
     # lineage 시각화 UI → 브라우저 http://127.0.0.1:3000
     image: marquezproject/marquez-web:0.50.0
+    restart: unless-stopped
     environment:
       MARQUEZ_HOST: marquez-api
       MARQUEZ_PORT: "5000"
@@ -118,7 +123,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
-      - marquez-api
+      marquez-api:
+        condition: service_healthy
     networks:
       - elt_net
 
@@ -177,6 +183,8 @@ services:
           --role Admin \
           --email "$${AIRFLOW_ADMIN_EMAIL}" \
           --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
+        /entrypoint airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"
+        /entrypoint airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"
         /entrypoint airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"
     user: "0:0"
     depends_on:
@@ -236,7 +244,7 @@ services:
 volumes:
   postgres_data:
   airflow_logs:
-  marquez_db_data:      # lineage 프로파일(Marquez) 전용
+  marquez_db_data:      # local dev Marquez metadata
 
 networks:
   elt_net:

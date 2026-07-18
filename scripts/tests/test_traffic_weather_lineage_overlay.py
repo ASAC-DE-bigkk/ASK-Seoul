@@ -203,6 +203,32 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
             with self.subTest(binding=binding):
                 self.assertIn(binding, self.base)
 
+    def test_marquez_services_are_always_on_and_supervised(self) -> None:
+        for service_name in ("marquez-db", "marquez-api", "marquez-web"):
+            with self.subTest(service=service_name):
+                service_block = re.search(
+                    rf"(?ms)^  {re.escape(service_name)}:\r?\n(?P<block>.*?)(?=^  [a-z][a-z0-9-]+:|\Z)",
+                    self.base,
+                )
+                self.assertIsNotNone(service_block)
+                block = service_block.group("block")
+                self.assertNotIn("profiles:", block)
+                self.assertIn("restart: unless-stopped", block)
+                self.assertNotIn("mem_limit:", block)
+
+    def test_marquez_api_disables_search_and_has_admin_healthcheck(self) -> None:
+        self.assertIn('SEARCH_ENABLED: "false"', self.base)
+        self.assertNotIn("JAVA_OPTS:", self.base)
+        self.assertIn("http://localhost:5001/healthcheck", self.base)
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-api:\r?\n.*?healthcheck:\r?\n.*?curl --fail http://localhost:5001/healthcheck",
+        )
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-web:\r?\n.*?depends_on:\r?\n      marquez-api:\r?\n        condition: service_healthy",
+        )
+
     def test_docker_compose_merges_environment_without_global_listener(self) -> None:
         if shutil.which("docker") is None:
             self.skipTest("Docker CLI is not installed")
@@ -298,7 +324,6 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, guide)
-
 
 if __name__ == "__main__":
     unittest.main()

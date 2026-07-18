@@ -78,11 +78,15 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             self.compose,
         )
 
-    def test_airflow_pool_is_bootstrapped_idempotently(self):
-        self.assertIn(
+    def test_airflow_pools_are_bootstrapped_idempotently(self):
+        expected_pool_commands = {
+            'airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"',
+            'airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"',
             'airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"',
-            self.compose,
-        )
+        }
+        for command in expected_pool_commands:
+            with self.subTest(command=command):
+                self.assertIn(command, self.compose)
 
 
 if __name__ == "__main__":
