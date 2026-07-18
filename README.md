@@ -159,17 +159,21 @@ powershell.exe -NoProfile -File ./scripts/deploy-dev.ps1
 powershell.exe -NoProfile -File ./scripts/verify-dev-deploy.ps1
 ```
 
-`deploy-dev.ps1` accepts only literal `origin/dev`. It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode. 이 스크립트는 `origin/dev`를 fetch하고, `.runtime/dev/` 아래 detached runtime worktree를 준비하고, `.runtime/dev/deployment-lock.json`을 쓰고, `.runtime/dev/docker-compose.generated.yml`을 생성한 뒤 해당 override로 Docker Compose를 기동한다. `verify-dev-deploy.ps1`가 통과해야 배포를 유효한 상태로 본다.
+`deploy-dev.ps1` accepts only literal `origin/dev`. It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode. 이 스크립트는 `origin/dev`를 fetch하고, `.runtime/dev/` 아래 detached runtime worktree를 준비한 뒤 base `docker-compose.yml` + `docker-compose.traffic-weather-lineage.yml` + `.runtime/dev/docker-compose.generated.yml`의 ordered exact 3-file set으로 기동한다. `Marquez always-on` 서비스도 이 기본 경로에서 profile 없이 올라오며 `verify-dev-deploy.ps1`가 통과해야 배포를 유효한 상태로 본다.
+
+exact compose label을 보장하기 위해 이 경로는 전체 dev stack을 `--force-recreate`한다. named volume은 유지하지만 실행 중 query/task는 중단될 수 있으므로 배포 전에 Traffic을 pause하고 active Traffic/Weather/Bronze 작업을 drain한다. `down -v`는 사용하지 않는다.
 
 Locked dev deployment는 다음 항목을 검증한다.
 
 - `dags`와 `dbt`의 detached runtime worktree path
 - `origin/dev`에서 resolve한 두 SHA 값
-- generated compose override path
+- generated compose override path, `lineage_overlay_sha256`, ordered `compose_files`
 - `airflow-init`, `airflow-apiserver`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-triggerer`의 실제 Docker mount
 - host runtime DAG/DBT worktree Git head와 Docker bind mount source
 - 필수 DBT project file `/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml`
 - `airflow-apiserver`와 `airflow-scheduler` health
+- Marquez DB/API/Web health·memory·restart/OOM, scheduler의 `marquez-api` DNS, lineage env, ordered compose labels
+- Airflow pool `trino_traffic_heavy=1`, `trino_weather_heavy=1`, legacy `trino_heavy=1`
 
 Safety gate: source root `dags/` and `dbt/` paths are fetch sources only. The harness must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths. 기존 runtime worktree가 dirty 상태면 revision 변경 전에 실패한다. 실패한 deploy 또는 verify command는 non-zero로 끝나며 retry 전에 원인을 진단해야 한다. Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies.
 
@@ -177,25 +181,27 @@ Safety gate: source root `dags/` and `dbt/` paths are fetch sources only. The ha
 
 ```powershell
 Get-Content -Raw .\.runtime\dev\deployment-lock.json | ConvertFrom-Json | ConvertTo-Json -Depth 8
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps
+docker compose -f .\docker-compose.yml -f .\docker-compose.traffic-weather-lineage.yml -f .\.runtime\dev\docker-compose.generated.yml ps
 
 $services = 'airflow-init','airflow-apiserver','airflow-scheduler','airflow-dag-processor','airflow-triggerer'
 foreach ($service in $services) {
-  $containerId = docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml ps -q $service
+  $containerId = docker compose -f .\docker-compose.yml -f .\docker-compose.traffic-weather-lineage.yml -f .\.runtime\dev\docker-compose.generated.yml ps -q $service
   docker inspect $containerId --format '{{json .Mounts}}'
 }
 
 $logSecretPattern = '(?i)(secret|token|password|serviceKey|api[_-]?key|access[_-]?key|r2)'
 $logValuePattern = '(?i)([A-Z0-9_]*(SECRET|TOKEN|PASSWORD|SERVICEKEY|API_KEY|ACCESS_KEY|R2)[A-Z0-9_]*=)\S+'
 foreach ($service in 'airflow-scheduler','airflow-apiserver') {
-  docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 $service 2>&1 |
+  docker compose -f .\docker-compose.yml -f .\docker-compose.traffic-weather-lineage.yml -f .\.runtime\dev\docker-compose.generated.yml logs --tail 200 $service 2>&1 |
     Where-Object { $_ -notmatch $logSecretPattern } |
     ForEach-Object { $_ -replace $logValuePattern, '$1[REDACTED]' }
 }
 git -C .\.runtime\dev\dags rev-parse HEAD
 git -C .\.runtime\dev\dbt rev-parse HEAD
-docker compose -f .\docker-compose.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
+docker compose -f .\docker-compose.yml -f .\docker-compose.traffic-weather-lineage.yml -f .\.runtime\dev\docker-compose.generated.yml exec airflow-scheduler test -f /opt/airflow/dbt/domains/traffic_weather/dbt_project.yml
 ```
+
+기본 Stage1은 `hardConcurrencyLimit=1`을 유지한다. `hardConcurrencyLimit=2`는 static gate와 exact-ref 기본 검증이 끝난 뒤 `docker-compose.trino-hard2-canary.yml`을 네 번째 overlay로 명시한 3-cycle canary에서만 사용한다. canary는 `1280MB` query cap, `2560MB` total memory, heap headroom `2GB`, task concurrency `2`를 적용하며 restart/OOM, Iceberg conflict/duplicate, Weather starvation, Traffic duration stop 조건이 발생하면 즉시 Traffic을 pause하고 기본 3-file Stage1으로 rollback한다. 상세 명령과 증거 항목은 `docs/traffic-weather-lineage.md`와 `docs/agent/workflows/revision-locked-dev-deploy.md`를 따른다.
 
 The nested repositories are configured as:
 

@@ -1,6 +1,21 @@
 Set-StrictMode -Version Latest
 
+$script:TrafficWeatherLineageOverlay = 'docker-compose.traffic-weather-lineage.yml'
+
 $script:AirflowServices = @(
+  'airflow-init',
+  'airflow-apiserver',
+  'airflow-scheduler',
+  'airflow-dag-processor',
+  'airflow-triggerer'
+)
+
+$script:DeploymentComposeLabelServices = @(
+  'postgres',
+  'marquez-db',
+  'marquez-api',
+  'marquez-web',
+  'trino',
   'airflow-init',
   'airflow-apiserver',
   'airflow-scheduler',
@@ -167,6 +182,42 @@ function Resolve-DevRevision {
   }
 }
 
+function Get-DevFileSha256 {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    throw "required file missing for sha256 fingerprint: $Path"
+  }
+
+  return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-DevComposeFileArguments {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock
+  )
+
+  $root = Normalize-DevHarnessPath -Path $RootPath
+  $composeFiles = @(
+    (Join-Path $root 'docker-compose.yml'),
+    $Lock.lineage_overlay_path,
+    $Lock.compose_override_path
+  )
+
+  $arguments = @()
+  foreach ($composeFile in $composeFiles) {
+    $arguments += @('-f', $composeFile)
+  }
+  return $arguments
+}
+
 function New-DeploymentLock {
   param(
     [Parameter(Mandatory = $true)]
@@ -183,9 +234,11 @@ function New-DeploymentLock {
 
   $root = Normalize-DevHarnessPath -Path $RootPath
   $runtime = Join-Path $root '.runtime\dev'
+  $overlayPath = Join-Path $root $script:TrafficWeatherLineageOverlay
+  $generatedOverridePath = Join-Path $runtime 'docker-compose.generated.yml'
 
   return [ordered]@{
-    schema_version = 1
+    schema_version = 2
     requested_ref = 'origin/dev'
     generated_at_utc = [DateTime]::UtcNow.ToString('o')
     dags = [ordered]@{
@@ -197,7 +250,14 @@ function New-DeploymentLock {
       worktree_path = (Join-Path $runtime 'dbt')
     }
     deployment_lock_path = (Join-Path $runtime 'deployment-lock.json')
-    compose_override_path = (Join-Path $runtime 'docker-compose.generated.yml')
+    compose_override_path = $generatedOverridePath
+    lineage_overlay_path = $overlayPath
+    lineage_overlay_sha256 = (Get-DevFileSha256 -Path $overlayPath)
+    compose_files = @(
+      (Join-Path $root 'docker-compose.yml'),
+      $overlayPath,
+      $generatedOverridePath
+    )
     required_dbt_project = '/opt/airflow/dbt/domains/traffic_weather/dbt_project.yml'
   }
 }
@@ -431,6 +491,113 @@ function Assert-DeploymentMounts {
   }
 }
 
+function Assert-CurrentLineageOverlayFingerprint {
+  param(
+    [Parameter(Mandatory = $true)]$Lock,
+    [Parameter(Mandatory = $true)][string]$CurrentLineageOverlaySha256
+  )
+
+  if ($CurrentLineageOverlaySha256 -ne $Lock.lineage_overlay_sha256) {
+    throw "lineage overlay sha256 mismatch: lock $($Lock.lineage_overlay_sha256), current $CurrentLineageOverlaySha256"
+  }
+}
+
+function Assert-DeploymentComposeLabels {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$ComposeLabels
+  )
+
+  $expected = @($Lock.compose_files | ForEach-Object { Normalize-DevHarnessPath -Path $_ })
+  if ($expected.Count -ne 3) {
+    throw "deployment lock compose_files expected exactly 3 entries, got $($expected.Count)"
+  }
+
+  foreach ($service in $script:DeploymentComposeLabelServices) {
+    if (-not $ComposeLabels.ContainsKey($service)) {
+      throw "compose labels missing for service $service"
+    }
+
+    $actual = @(([string]$ComposeLabels[$service]['com.docker.compose.project.config_files'] -split ',') |
+      ForEach-Object { Normalize-DevHarnessPath -Path $_.Trim() })
+    if ($actual.Count -ne 3) {
+      throw "compose file set mismatch for $service`: expected exactly 3 entries, got $($actual.Count)"
+    }
+
+    for ($index = 0; $index -lt 3; $index++) {
+      if ($actual[$index] -ne $expected[$index]) {
+        throw "compose file set mismatch for $service at index $index`: expected $($expected[$index]), got $($actual[$index])"
+      }
+    }
+  }
+}
+
+function Assert-SchedulerLineageChecks {
+  param(
+    [Parameter(Mandatory = $true)]
+    [hashtable]$SchedulerLineageChecks
+  )
+
+  foreach ($key in @(
+    'AIRFLOW__OPENLINEAGE__TRANSPORT', 'AIRFLOW__OPENLINEAGE__NAMESPACE',
+    'AIRFLOW__OPENLINEAGE__SELECTIVE_ENABLE', 'AIRFLOW__OPENLINEAGE__DISABLE_SOURCE_CODE',
+    'AIRFLOW__OPENLINEAGE__INCLUDE_FULL_TASK_INFO', 'AIRFLOW__OPENLINEAGE__DEBUG_MODE',
+    'ASK_SEOUL_DBT_OPENLINEAGE_ENABLED', 'ASK_SEOUL_DBT_OPENLINEAGE_URL',
+    'ASK_SEOUL_DBT_OPENLINEAGE_ENDPOINT', 'ASK_SEOUL_DBT_OPENLINEAGE_NAMESPACE'
+  )) {
+    if (-not $SchedulerLineageChecks.ContainsKey($key) -or $SchedulerLineageChecks[$key] -ne $true) {
+      throw "scheduler lineage check failed for $key"
+    }
+  }
+}
+
+function Assert-AirflowPools {
+  param(
+    [Parameter(Mandatory = $true)]
+    [hashtable]$AirflowPools
+  )
+
+  foreach ($poolName in 'trino_traffic_heavy', 'trino_weather_heavy', 'trino_heavy') {
+    if (-not $AirflowPools.ContainsKey($poolName)) {
+      throw "Airflow pool missing: $poolName"
+    }
+    if ([int]$AirflowPools[$poolName] -ne 1) {
+      throw "Airflow pool $poolName expected 1 slot, got $($AirflowPools[$poolName])"
+    }
+  }
+}
+
+function Assert-MarquezDeploymentRuntime {
+  param(
+    [Parameter(Mandatory = $true)][hashtable]$MarquezRuntime,
+    [Parameter(Mandatory = $true)][hashtable]$MarquezEndpointChecks
+  )
+
+  $expectedMemory = @{ 'marquez-db' = 536870912L; 'marquez-api' = 1610612736L; 'marquez-web' = 268435456L }
+  foreach ($service in $expectedMemory.Keys) {
+    $runtime = $MarquezRuntime[$service]
+    if ($runtime.Status -ne 'running') { throw "Marquez $service status expected running, got $($runtime.Status)" }
+    if ($service -ne 'marquez-web' -and $runtime.Health -ne 'healthy') { throw "Marquez $service health expected healthy, got $($runtime.Health)" }
+    if ([int64]$runtime.Memory -ne $expectedMemory[$service]) { throw "Marquez $service memory expected $($expectedMemory[$service]) bytes, got $($runtime.Memory)" }
+    if ($runtime.RestartPolicy -ne 'unless-stopped') { throw "Marquez $service RestartPolicy expected unless-stopped, got $($runtime.RestartPolicy)" }
+    if ([int]$runtime.RestartCount -ne 0) { throw "Marquez $service RestartCount expected 0, got $($runtime.RestartCount)" }
+    if ([bool]$runtime.OOMKilled) { throw "Marquez $service OOMKilled must be false" }
+  }
+
+  if ($MarquezEndpointChecks.Dns -ne $true) {
+    throw 'Marquez DNS missing in airflow-scheduler'
+  }
+  if ([int]$MarquezEndpointChecks.AdminHttpStatus -ne 200) {
+    throw "Marquez admin healthcheck expected HTTP 200, got $($MarquezEndpointChecks.AdminHttpStatus)"
+  }
+  if ([int]$MarquezEndpointChecks.MetadataHttpStatus -ne 200) {
+    throw "Marquez metadata API expected HTTP 200, got $($MarquezEndpointChecks.MetadataHttpStatus)"
+  }
+}
+
 function Assert-RunningDeployment {
   param(
     [Parameter(Mandatory = $true)]
@@ -446,7 +613,25 @@ function Assert-RunningDeployment {
     [bool]$RequiredDbtProjectExists,
 
     [Parameter(Mandatory = $true)]
-    [hashtable]$ServiceHealth
+    [hashtable]$ServiceHealth,
+
+    [Parameter(Mandatory = $true)]
+    [string]$CurrentLineageOverlaySha256,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$ComposeLabels,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$SchedulerLineageChecks,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$AirflowPools,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$MarquezRuntime,
+
+    [Parameter(Mandatory = $true)]
+    [hashtable]$MarquezEndpointChecks
   )
 
   foreach ($service in $script:AirflowServices) {
@@ -486,6 +671,12 @@ function Assert-RunningDeployment {
       throw "service $service is not healthy: $($ServiceHealth[$service])"
     }
   }
+
+  Assert-CurrentLineageOverlayFingerprint -Lock $Lock -CurrentLineageOverlaySha256 $CurrentLineageOverlaySha256
+  Assert-DeploymentComposeLabels -Lock $Lock -ComposeLabels $ComposeLabels
+  Assert-SchedulerLineageChecks -SchedulerLineageChecks $SchedulerLineageChecks
+  Assert-AirflowPools -AirflowPools $AirflowPools
+  Assert-MarquezDeploymentRuntime -MarquezRuntime $MarquezRuntime -MarquezEndpointChecks $MarquezEndpointChecks
 }
 
 function Invoke-DevDockerCompose {
@@ -501,7 +692,7 @@ function Invoke-DevDockerCompose {
   )
 
   $root = Normalize-DevHarnessPath -Path $RootPath
-  $composeArgs = @('-f', (Join-Path $root 'docker-compose.yml'), '-f', $Lock.compose_override_path) + $Arguments
+  $composeArgs = (Get-DevComposeFileArguments -RootPath $root -Lock $Lock) + $Arguments
   Push-Location -LiteralPath $root
   try {
     return Invoke-DevHarnessExternal -FilePath 'docker' -Arguments (@('compose') + $composeArgs)
@@ -530,6 +721,33 @@ function Get-DevDockerServiceMounts {
 
   $json = (Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{json .Mounts}}') | Select-Object -First 1)
   return @($json | ConvertFrom-Json)
+}
+
+function Get-DevDockerServiceLabels {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$RootPath,
+
+    [Parameter(Mandatory = $true)]
+    $Lock,
+
+    [Parameter(Mandatory = $true)]
+    [string]$Service
+  )
+
+  # -a is required for the successfully completed airflow-init one-shot container.
+  $containerId = (Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments @('ps', '-aq', $Service) | Select-Object -First 1).Trim()
+  if (-not $containerId) {
+    throw "container id missing for service $Service"
+  }
+
+  $json = (Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{json .Config.Labels}}') | Select-Object -First 1)
+  $object = $json | ConvertFrom-Json
+  $labels = @{}
+  foreach ($property in $object.PSObject.Properties) {
+    $labels[$property.Name] = $property.Value
+  }
+  return $labels
 }
 
 function Get-DevDockerServiceHealth {
@@ -565,6 +783,87 @@ function Invoke-DevSchedulerCommand {
   )
 
   return Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments (@('exec', '-T', 'airflow-scheduler') + $Command)
+}
+
+function Get-DevSchedulerLineageChecks {
+  param([string]$RootPath, $Lock)
+
+  $expectedPairs = @(
+    'AIRFLOW__OPENLINEAGE__TRANSPORT', '{"type": "http", "url": "http://marquez-api:5000", "endpoint": "api/v1/lineage"}',
+    'AIRFLOW__OPENLINEAGE__NAMESPACE', 'ask-seoul-dev-airflow',
+    'AIRFLOW__OPENLINEAGE__SELECTIVE_ENABLE', 'true',
+    'AIRFLOW__OPENLINEAGE__DISABLE_SOURCE_CODE', 'true',
+    'AIRFLOW__OPENLINEAGE__INCLUDE_FULL_TASK_INFO', 'false',
+    'AIRFLOW__OPENLINEAGE__DEBUG_MODE', 'false',
+    'ASK_SEOUL_DBT_OPENLINEAGE_ENABLED', 'true',
+    'ASK_SEOUL_DBT_OPENLINEAGE_URL', 'http://marquez-api:5000',
+    'ASK_SEOUL_DBT_OPENLINEAGE_ENDPOINT', 'api/v1/lineage',
+    'ASK_SEOUL_DBT_OPENLINEAGE_NAMESPACE', 'ask-seoul-dev-dbt'
+  )
+  $script = 'while [ "$#" -gt 0 ]; do key="$1"; expected="$2"; shift 2; if [ "$(printenv "$key")" = "$expected" ]; then printf "%s=true\n" "$key"; else printf "%s=false\n" "$key"; fi; done'
+  $lines = Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command (@('sh', '-c', $script, '--') + $expectedPairs)
+  $checks = @{}
+  foreach ($line in $lines) {
+    $name, $value = $line -split '=', 2
+    $checks[$name] = ($value -eq 'true')
+  }
+  return $checks
+}
+
+function Get-DevAirflowPools {
+  param([string]$RootPath, $Lock)
+
+  $raw = @(Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('airflow', 'pools', 'list', '--output', 'json')) -join "`n"
+  $arrayStarts = [regex]::Matches($raw, '(?m)^\s*\[')
+  if ($arrayStarts.Count -eq 0) {
+    throw 'Airflow pools output did not contain a JSON array'
+  }
+
+  $json = $raw.Substring($arrayStarts[$arrayStarts.Count - 1].Index).Trim()
+  $rows = @($json | ConvertFrom-Json)
+  $pools = @{}
+  foreach ($row in $rows) {
+    if ($row.pool -in @('trino_traffic_heavy', 'trino_weather_heavy', 'trino_heavy')) {
+      $pools[[string]$row.pool] = [int]$row.slots
+    }
+  }
+  return $pools
+}
+
+function Get-DevMarquezRuntime {
+  param([string]$RootPath, $Lock)
+
+  $evidence = @{}
+  foreach ($service in 'marquez-db', 'marquez-api', 'marquez-web') {
+    $containerId = (Invoke-DevDockerCompose -RootPath $RootPath -Lock $Lock -Arguments @('ps', '-aq', $service) | Select-Object -First 1).Trim()
+    if (-not $containerId) {
+      throw "container id missing for service $service"
+    }
+
+    $state = (Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{json .State}}') | Select-Object -First 1) | ConvertFrom-Json
+    $evidence[$service] = @{
+      Status = [string]$state.Status
+      Health = if ($state.Health) { [string]$state.Health.Status } else { '' }
+      Memory = [int64]((Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{.HostConfig.Memory}}') | Select-Object -First 1).Trim())
+      RestartPolicy = [string]((Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{.HostConfig.RestartPolicy.Name}}') | Select-Object -First 1).Trim())
+      RestartCount = [int]((Invoke-DevHarnessExternal -FilePath 'docker' -Arguments @('inspect', $containerId, '--format', '{{.RestartCount}}') | Select-Object -First 1).Trim())
+      OOMKilled = [bool]$state.OOMKilled
+    }
+  }
+  return $evidence
+}
+
+function Get-DevMarquezEndpointChecks {
+  param([string]$RootPath, $Lock)
+
+  $dns = (Invoke-DevSchedulerCommand -RootPath $RootPath -Lock $Lock -Command @('sh', '-c', 'getent hosts marquez-api >/dev/null && printf true || printf false') | Select-Object -First 1).Trim()
+  return @{
+    Dns = ($dns -eq 'true')
+    # Windows PowerShell defines `curl` as an Invoke-WebRequest alias. Pin the
+    # native executable so curl flags and exit codes retain their CLI meaning.
+    AdminHttpStatus = [int]((Invoke-DevHarnessExternal -FilePath 'curl.exe' -Arguments @('-sS', '-o', 'NUL', '-w', '%{http_code}', 'http://127.0.0.1:5001/healthcheck') | Select-Object -First 1).Trim())
+    MetadataHttpStatus = [int]((Invoke-DevHarnessExternal -FilePath 'curl.exe' -Arguments @('-sS', '-o', 'NUL', '-w', '%{http_code}', 'http://127.0.0.1:5000/api/v1/namespaces') | Select-Object -First 1).Trim())
+  }
 }
 
 function Get-RunningDeploymentEvidence {
@@ -604,6 +903,11 @@ function Get-RunningDeploymentEvidence {
     throw "unexpected required dbt project probe result: $projectEvidence"
   }
 
+  $composeLabels = @{}
+  foreach ($service in $script:DeploymentComposeLabelServices) {
+    $composeLabels[$service] = Get-DevDockerServiceLabels -RootPath $RootPath -Lock $Lock -Service $service
+  }
+
   return @{
     ServiceMounts = $serviceMounts
     RuntimeGitHeads = @{ dags = $dagHead; dbt = $dbtHead }
@@ -612,12 +916,20 @@ function Get-RunningDeploymentEvidence {
       'airflow-apiserver' = Get-DevDockerServiceHealth -RootPath $RootPath -Lock $Lock -Service 'airflow-apiserver'
       'airflow-scheduler' = Get-DevDockerServiceHealth -RootPath $RootPath -Lock $Lock -Service 'airflow-scheduler'
     }
+    CurrentLineageOverlaySha256 = Get-DevFileSha256 -Path $Lock.lineage_overlay_path
+    ComposeLabels = $composeLabels
+    SchedulerLineageChecks = Get-DevSchedulerLineageChecks -RootPath $RootPath -Lock $Lock
+    AirflowPools = Get-DevAirflowPools -RootPath $RootPath -Lock $Lock
+    MarquezRuntime = Get-DevMarquezRuntime -RootPath $RootPath -Lock $Lock
+    MarquezEndpointChecks = Get-DevMarquezEndpointChecks -RootPath $RootPath -Lock $Lock
   }
 }
 
 Export-ModuleMember -Function @(
   'Resolve-DevRevision',
   'Ensure-DevRuntimeWorktree',
+  'Get-DevFileSha256',
+  'Get-DevComposeFileArguments',
   'New-DeploymentLock',
   'New-DevDeploymentMutex',
   'Close-DevDeploymentMutex',

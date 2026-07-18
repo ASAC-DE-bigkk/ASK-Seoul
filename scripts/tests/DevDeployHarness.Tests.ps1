@@ -100,11 +100,62 @@ function New-TestServiceMounts {
   return $mounts
 }
 
+function New-TestDeploymentLock {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Name,
+    [string]$DagSha = ('a' * 40),
+    [string]$DbtSha = ('b' * 40)
+  )
+
+  $root = Join-Path $TestDrive $Name
+  New-Item -ItemType Directory -Path (Join-Path $root '.runtime\dev') -Force | Out-Null
+  Set-Content -LiteralPath (Join-Path $root 'docker-compose.yml') -Value 'services: {}' -Encoding UTF8
+  Set-Content -LiteralPath (Join-Path $root 'docker-compose.traffic-weather-lineage.yml') -Value 'services: {}' -Encoding UTF8
+
+  return [pscustomobject]@{
+    RootPath = $root
+    Lock = New-DeploymentLock -RootPath $root -DagSha $DagSha -DbtSha $DbtSha
+  }
+}
+
+function New-TestComposeLabels {
+  param([Parameter(Mandatory = $true)]$Lock)
+  $value = (@($Lock.compose_files) -join ',')
+  $labels = @{}
+  foreach ($service in @(
+    'postgres', 'marquez-db', 'marquez-api', 'marquez-web', 'trino',
+    'airflow-init', 'airflow-apiserver', 'airflow-scheduler',
+    'airflow-dag-processor', 'airflow-triggerer'
+  )) {
+    $labels[$service] = @{
+      'com.docker.compose.project.config_files' = $value
+    }
+  }
+  return $labels
+}
+
 function New-TestRunningDeploymentArgs {
   param(
     [Parameter(Mandatory = $true)]
     $Lock
   )
+
+  $schedulerChecks = @{}
+  foreach ($key in @(
+    'AIRFLOW__OPENLINEAGE__TRANSPORT',
+    'AIRFLOW__OPENLINEAGE__NAMESPACE',
+    'AIRFLOW__OPENLINEAGE__SELECTIVE_ENABLE',
+    'AIRFLOW__OPENLINEAGE__DISABLE_SOURCE_CODE',
+    'AIRFLOW__OPENLINEAGE__INCLUDE_FULL_TASK_INFO',
+    'AIRFLOW__OPENLINEAGE__DEBUG_MODE',
+    'ASK_SEOUL_DBT_OPENLINEAGE_ENABLED',
+    'ASK_SEOUL_DBT_OPENLINEAGE_URL',
+    'ASK_SEOUL_DBT_OPENLINEAGE_ENDPOINT',
+    'ASK_SEOUL_DBT_OPENLINEAGE_NAMESPACE'
+  )) {
+    $schedulerChecks[$key] = $true
+  }
 
   return @{
     Lock = $Lock
@@ -112,12 +163,27 @@ function New-TestRunningDeploymentArgs {
     RuntimeGitHeads = @{ dags = $Lock.dags.sha; dbt = $Lock.dbt.sha }
     RequiredDbtProjectExists = $true
     ServiceHealth = @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+    CurrentLineageOverlaySha256 = $Lock.lineage_overlay_sha256
+    ComposeLabels = New-TestComposeLabels -Lock $Lock
+    SchedulerLineageChecks = $schedulerChecks
+    AirflowPools = @{ trino_traffic_heavy = 1; trino_weather_heavy = 1; trino_heavy = 1 }
+    MarquezRuntime = @{
+      'marquez-db' = @{ Status = 'running'; Health = 'healthy'; Memory = 536870912L; RestartPolicy = 'unless-stopped'; RestartCount = 0; OOMKilled = $false }
+      'marquez-api' = @{ Status = 'running'; Health = 'healthy'; Memory = 1610612736L; RestartPolicy = 'unless-stopped'; RestartCount = 0; OOMKilled = $false }
+      'marquez-web' = @{ Status = 'running'; Health = ''; Memory = 268435456L; RestartPolicy = 'unless-stopped'; RestartCount = 0; OOMKilled = $false }
+    }
+    MarquezEndpointChecks = @{ Dns = $true; AdminHttpStatus = 200; MetadataHttpStatus = 200 }
   }
 }
 
 Describe 'DevDeployHarness' {
+  It 'uses TestDrive for every repository fixture' {
+    $forbiddenRoot = 'C:' + [IO.Path]::DirectorySeparatorChar + 'repo'
+    (Get-Content -Raw -LiteralPath $PSCommandPath) | Should Not Match ([regex]::Escape($forbiddenRoot))
+  }
+
   It 'writes every Airflow service with the locked DAG and DBT mount' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $lock = (New-TestDeploymentLock -Name 'compose-override-mounts').Lock
     $yaml = New-DevComposeOverrideText -Lock $lock
 
     foreach ($service in 'airflow-init', 'airflow-apiserver', 'airflow-scheduler', 'airflow-dag-processor', 'airflow-triggerer') {
@@ -129,10 +195,11 @@ Describe 'DevDeployHarness' {
   }
 
   It 'rejects resolving any ref except literal origin/dev' {
+    $fixture = New-TestDeploymentLock -Name 'reject-ref'
     $thrown = $null
 
     try {
-      Resolve-DevRevision -RootPath 'C:\repo' -Ref 'dev'
+      Resolve-DevRevision -RootPath $fixture.RootPath -Ref 'dev'
     }
     catch {
       $thrown = $_
@@ -209,7 +276,7 @@ Describe 'DevDeployHarness' {
   }
 
   It 'rejects a Docker mount that differs from the lock' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $lock = (New-TestDeploymentLock -Name 'wrong-mount').Lock
     $thrown = $null
 
     try {
@@ -267,6 +334,7 @@ Describe 'DevDeployHarness' {
     $content = Get-Content -Raw -LiteralPath $script.Source
     $content | Should Match '\$revision = Resolve-DevRevision -RootPath \$root -SkipFetch:\$WhatIf'
     $content | Should Match 'WhatIf: requested_ref origin/dev'
+    $content | Should Match 'WhatIf: lineage overlay'
     $content | Should Not Match '(?i)\bparam\s*\([^)]*\$(Ref|Branch|Sha|FeatureRef)\b'
     $content | Should Not Match '(?i)Resolve-DevRevision[^\r\n]*-(Ref|Branch|Sha|FeatureRef)\b'
   }
@@ -275,7 +343,7 @@ Describe 'DevDeployHarness' {
     $script = Get-Command (Join-Path $PSScriptRoot '..\deploy-dev.ps1')
     $content = Get-Content -Raw -LiteralPath $script.Source
 
-    $composeUpIndex = $content.IndexOf("Invoke-DevDockerCompose -RootPath `$root -Lock `$lock -Arguments @('up', '-d', '--build', '--wait')")
+    $composeUpIndex = $content.IndexOf("Invoke-DevDockerCompose -RootPath `$root -Lock `$lock -Arguments @('up', '-d', '--build', '--wait', '--force-recreate')")
     $verifyIndex = $content.IndexOf("& (Join-Path `$PSScriptRoot 'verify-dev-deploy.ps1')")
     $successIndex = $content.IndexOf('Write-Output "requested_ref origin/dev"')
     $whatIfReturnIndex = $content.IndexOf('return')
@@ -284,6 +352,53 @@ Describe 'DevDeployHarness' {
     $verifyIndex | Should BeGreaterThan $composeUpIndex
     $successIndex | Should BeGreaterThan $verifyIndex
     $verifyIndex | Should BeGreaterThan $whatIfReturnIndex
+  }
+
+  It 'force recreates the stack so every service records the exact compose file set' {
+    $script = Get-Item (Join-Path $PSScriptRoot '..\deploy-dev.ps1')
+    $content = Get-Content -Raw -LiteralPath $script.FullName
+
+    $content | Should Match "-Arguments @\('up', '-d', '--build', '--wait', '--force-recreate'\)"
+    $content | Should Not Match "-Arguments @\('up', '-d', '--build', '--wait'\)"
+  }
+
+  It 'records the Traffic/Weather lineage overlay in the deployment lock' {
+    $fixture = New-TestDeploymentLock -Name 'lock-overlay'
+    $root = $fixture.RootPath
+    $lock = $fixture.Lock
+    $overlay = Join-Path $root 'docker-compose.traffic-weather-lineage.yml'
+
+    $lock.schema_version | Should Be 2
+    $lock.lineage_overlay_path | Should Be $overlay
+    $lock.lineage_overlay_sha256 | Should Match '^[0-9a-f]{64}$'
+    @($lock.compose_files).Count | Should Be 3
+    @($lock.compose_files)[0] | Should Be (Join-Path $root 'docker-compose.yml')
+    @($lock.compose_files)[1] | Should Be $overlay
+    @($lock.compose_files)[2] | Should Be $lock.compose_override_path
+  }
+
+  It 'fails deployment lock creation when the required lineage overlay is missing' {
+    $root = Join-Path $TestDrive 'missing-overlay'
+    New-Item -ItemType Directory -Path (Join-Path $root '.runtime\dev') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $root 'docker-compose.yml') -Value 'services: {}' -Encoding UTF8
+
+    Assert-TestThrows -Pattern 'required file missing for sha256 fingerprint.*docker-compose\.traffic-weather-lineage\.yml' -ScriptBlock {
+      New-DeploymentLock -RootPath $root -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    }
+  }
+
+  It 'runs docker compose with base, lineage overlay, then generated override' {
+    $fixture = New-TestDeploymentLock -Name 'compose-order'
+    $lock = $fixture.Lock
+    Mock Invoke-DevHarnessExternal {
+      param([string]$FilePath, [string[]]$Arguments)
+      $Arguments -join ' '
+    } -ModuleName DevDeployHarness
+
+    $output = Invoke-DevDockerCompose -RootPath $fixture.RootPath -Lock $lock -Arguments @('config', '--quiet')
+
+    $expected = "compose -f $($lock.compose_files[0]) -f $($lock.compose_files[1]) -f $($lock.compose_files[2]) config --quiet"
+    ($output -join ' ') | Should Match ([regex]::Escape($expected))
   }
 
   It 'queries completed airflow-init mounts with docker compose ps --all' {
@@ -322,6 +437,13 @@ Describe 'DevDeployHarness' {
     $readme | Should Match 'deploy-dev\.ps1'
     $readme | Should Match 'origin/dev'
     $readme | Should Match 'deploy\.sh[\s\S]*main'
+    $readme | Should Match 'Marquez always-on'
+    $readme | Should Match 'docker-compose\.traffic-weather-lineage\.yml'
+    $readme | Should Match 'trino_traffic_heavy=1'
+    $readme | Should Match 'trino_weather_heavy=1'
+    $readme | Should Match 'docker-compose\.trino-hard2-canary\.yml'
+    $readme | Should Not Match '--profile lineage'
+    $readme | Should Not Match 'docker compose -f \.\\docker-compose\.yml -f \.\\\.runtime\\dev\\docker-compose\.generated\.yml'
   }
 
   It 'documents revision-locked dev deploy guardrails and diagnosis evidence' {
@@ -330,6 +452,9 @@ Describe 'DevDeployHarness' {
     $workflow | Should Match 'deploy-dev\.ps1` accepts only literal `origin/dev`'
     $workflow | Should Match 'It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode'
     $workflow | Should Match 'deployment-lock\.json'
+    $workflow | Should Match 'lineage_overlay_sha256'
+    $workflow | Should Match 'compose_files'
+    $workflow | Should Match 'docker-compose\.yml[\s\S]*docker-compose\.traffic-weather-lineage\.yml[\s\S]*docker-compose\.generated\.yml'
     $workflow | Should Match 'airflow-init[\s\S]*airflow-apiserver[\s\S]*airflow-scheduler[\s\S]*airflow-dag-processor[\s\S]*airflow-triggerer'
     $workflow | Should Match 'source root `dags/` and `dbt/` paths are fetch sources only'
     $workflow | Should Match 'must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths'
@@ -345,6 +470,21 @@ Describe 'DevDeployHarness' {
     $workflow | Should Match 'git -C \.\\.runtime\\dev\\dbt rev-parse HEAD'
     $workflow | Should Match '/opt/airflow/dbt/domains/traffic_weather/dbt_project\.yml'
     $workflow | Should Match 'Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies'
+    $workflow | Should Match 'Marquez always-on'
+    $workflow | Should Match 'marquez-api'
+    $workflow | Should Match 'DNS'
+    $workflow | Should Match 'compose labels'
+    $workflow | Should Match 'trino_traffic_heavy=1'
+    $workflow | Should Match 'trino_weather_heavy=1'
+    $workflow | Should Match 'hardConcurrencyLimit=1'
+    $workflow | Should Match 'docker-compose\.trino-hard2-canary\.yml'
+    $workflow | Should Match 'hardConcurrencyLimit=2'
+    $workflow | Should Match 'restart/OOM/memory error'
+    $workflow | Should Match 'Iceberg conflict/duplicate'
+    $workflow | Should Match 'Weather scheduled > 15m'
+    $workflow | Should Match 'Traffic > 30m'
+    $workflow | Should Not Match '--profile lineage'
+    $workflow | Should Not Match 'docker compose -f \.\\docker-compose\.yml -f \.\\\.runtime\\dev\\docker-compose\.generated\.yml'
   }
 
   It 'verify-dev-deploy.ps1 has no public parameters and rejects unexpected arguments' {
@@ -359,47 +499,38 @@ Describe 'DevDeployHarness' {
   }
 
   It 'rejects a runtime DAG SHA that differs from the lock' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $fixture = New-TestDeploymentLock -Name 'runtime-dag-sha'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    $assertArgs.RuntimeGitHeads.dags = ('c' * 40)
 
     Assert-TestThrows -Pattern 'DAG.*SHA.*mismatch' -ScriptBlock {
-      Assert-RunningDeployment `
-        -Lock $lock `
-        -ServiceMounts (New-TestServiceMounts -Lock $lock) `
-        -RuntimeGitHeads @{ dags = ('c' * 40); dbt = ('b' * 40) } `
-        -RequiredDbtProjectExists $true `
-        -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+      Assert-RunningDeployment @assertArgs
     }
   }
 
   It 'rejects a runtime DBT SHA that differs from the lock' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $fixture = New-TestDeploymentLock -Name 'runtime-dbt-sha'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    $assertArgs.RuntimeGitHeads.dbt = ('d' * 40)
 
     Assert-TestThrows -Pattern 'DBT.*SHA.*mismatch' -ScriptBlock {
-      Assert-RunningDeployment `
-        -Lock $lock `
-        -ServiceMounts (New-TestServiceMounts -Lock $lock) `
-        -RuntimeGitHeads @{ dags = ('a' * 40); dbt = ('d' * 40) } `
-        -RequiredDbtProjectExists $true `
-        -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+      Assert-RunningDeployment @assertArgs
     }
   }
 
   It 'rejects a running deployment with a missing required dbt project' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $fixture = New-TestDeploymentLock -Name 'missing-dbt-project'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    $assertArgs.RequiredDbtProjectExists = $false
 
     Assert-TestThrows -Pattern 'dbt project.*missing' -ScriptBlock {
-      Assert-RunningDeployment `
-        -Lock $lock `
-        -ServiceMounts (New-TestServiceMounts -Lock $lock) `
-        -RuntimeGitHeads @{ dags = ('a' * 40); dbt = ('b' * 40) } `
-        -RequiredDbtProjectExists $false `
-        -ServiceHealth @{ 'airflow-apiserver' = 'healthy'; 'airflow-scheduler' = 'healthy' }
+      Assert-RunningDeployment @assertArgs
     }
   }
 
   It 'rejects a running deployment with a missing service mount set' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
-    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $fixture = New-TestDeploymentLock -Name 'missing-service-mounts'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
     $assertArgs.ServiceMounts.Remove('airflow-triggerer')
 
     Assert-TestThrows -Pattern 'mounts missing.*airflow-triggerer' -ScriptBlock {
@@ -408,7 +539,8 @@ Describe 'DevDeployHarness' {
   }
 
   It 'rejects a running deployment with a bad service mount path' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $fixture = New-TestDeploymentLock -Name 'bad-service-mount'
+    $lock = $fixture.Lock
     $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
     $assertArgs.ServiceMounts['airflow-scheduler'] = @(
       @{ Destination = '/opt/airflow/dags'; Source = 'C:\wrong-dags' },
@@ -422,8 +554,8 @@ Describe 'DevDeployHarness' {
   }
 
   It 'rejects missing apiserver health evidence' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
-    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $fixture = New-TestDeploymentLock -Name 'missing-apiserver-health'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
     $assertArgs.ServiceHealth.Remove('airflow-apiserver')
 
     Assert-TestThrows -Pattern 'health missing.*airflow-apiserver' -ScriptBlock {
@@ -432,8 +564,8 @@ Describe 'DevDeployHarness' {
   }
 
   It 'rejects unhealthy scheduler health evidence' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
-    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $fixture = New-TestDeploymentLock -Name 'unhealthy-scheduler'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
     $assertArgs.ServiceHealth['airflow-scheduler'] = 'starting'
 
     Assert-TestThrows -Pattern 'airflow-scheduler.*not healthy.*starting' -ScriptBlock {
@@ -441,8 +573,86 @@ Describe 'DevDeployHarness' {
     }
   }
 
+  It 'rejects a changed current lineage overlay fingerprint' {
+    $fixture = New-TestDeploymentLock -Name 'overlay-drift'
+    $lock = $fixture.Lock
+    Set-Content -LiteralPath $lock.lineage_overlay_path -Value 'services: { changed: {} }' -Encoding UTF8
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.CurrentLineageOverlaySha256 = Get-DevFileSha256 -Path $lock.lineage_overlay_path
+
+    Assert-TestThrows -Pattern 'lineage overlay sha256 mismatch' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects reordered compose config file labels' {
+    $fixture = New-TestDeploymentLock -Name 'labels-reordered'
+    $lock = $fixture.Lock
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.ComposeLabels['airflow-scheduler']['com.docker.compose.project.config_files'] = @(
+      $lock.compose_files[1], $lock.compose_files[0], $lock.compose_files[2]
+    ) -join ','
+
+    Assert-TestThrows -Pattern 'compose file set mismatch.*airflow-scheduler.*index 0' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects a false scheduler lineage boolean without retaining raw env' {
+    $fixture = New-TestDeploymentLock -Name 'scheduler-check'
+    $lock = $fixture.Lock
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $lock
+    $assertArgs.SchedulerLineageChecks['AIRFLOW__OPENLINEAGE__NAMESPACE'] = $false
+
+    Assert-TestThrows -Pattern 'scheduler lineage check failed.*AIRFLOW__OPENLINEAGE__NAMESPACE' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects a missing Weather pool slot' {
+    $fixture = New-TestDeploymentLock -Name 'pool-slot'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    $assertArgs.AirflowPools['trino_weather_heavy'] = 0
+
+    Assert-TestThrows -Pattern 'Airflow pool.*trino_weather_heavy.*expected 1.*got 0' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'rejects a wrong Marquez memory cap restart policy count or OOM state' {
+    $fixture = New-TestDeploymentLock -Name 'marquez-runtime'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    $assertArgs.MarquezRuntime['marquez-api'].Memory = 0L
+    $assertArgs.MarquezRuntime['marquez-api'].RestartPolicy = 'no'
+    $assertArgs.MarquezRuntime['marquez-api'].RestartCount = 1
+    $assertArgs.MarquezRuntime['marquez-api'].OOMKilled = $true
+
+    Assert-TestThrows -Pattern 'Marquez marquez-api memory expected 1610612736 bytes, got 0' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
+  It 'uses the native curl executable for Marquez endpoint checks on Windows PowerShell' {
+    $module = Get-Module DevDeployHarness
+    $source = Get-Content -Raw -LiteralPath $module.Path
+
+    $source | Should Match "Invoke-DevHarnessExternal -FilePath 'curl\.exe'"
+    $source | Should Not Match "Invoke-DevHarnessExternal -FilePath 'curl'"
+  }
+
+  It 'passes every mandatory evidence argument for legacy SHA assertions' {
+    $fixture = New-TestDeploymentLock -Name 'legacy-dag-sha'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    $assertArgs.RuntimeGitHeads.dags = ('c' * 40)
+
+    Assert-TestThrows -Pattern 'DAG.*SHA.*mismatch' -ScriptBlock {
+      Assert-RunningDeployment @assertArgs
+    }
+  }
+
   It 'preserves scheduler command failures while probing the required dbt project' {
-    $lock = New-DeploymentLock -RootPath 'C:\repo' -DagSha ('a' * 40) -DbtSha ('b' * 40)
+    $fixture = New-TestDeploymentLock -Name 'scheduler-command-failure'
+    $lock = $fixture.Lock
 
     Mock Invoke-DevDockerCompose {
       param(
@@ -491,7 +701,7 @@ Describe 'DevDeployHarness' {
     } -ModuleName DevDeployHarness
 
     Assert-TestThrows -Pattern 'scheduler not running' -ScriptBlock {
-      Get-RunningDeploymentEvidence -RootPath 'C:\repo' -Lock $lock
+      Get-RunningDeploymentEvidence -RootPath $fixture.RootPath -Lock $lock
     }
   }
 }

@@ -47,6 +47,14 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             "TRINO_QUERY_MAX_TOTAL_MEMORY=4GB",
         }
         self.assertTrue(expected.issubset(set(self.env_example.splitlines())))
+        canary_docs = {
+            "# Stage2 canary only: TRINO_CANARY_QUERY_MAX_MEMORY_PER_NODE=1280MB",
+            "# Stage2 canary only: TRINO_CANARY_QUERY_MAX_MEMORY=1280MB",
+            "# Stage2 canary only: TRINO_CANARY_QUERY_MAX_TOTAL_MEMORY=2560MB",
+            "# Stage2 canary only: TRINO_CANARY_MEMORY_HEAP_HEADROOM_PER_NODE=2GB",
+            "# Stage2 canary only: TRINO_CANARY_TASK_CONCURRENCY=2",
+        }
+        self.assertTrue(canary_docs.issubset(set(self.env_example.splitlines())))
 
     def test_global_resource_group_allows_one_running_query(self):
         resource_groups = ROOT / "trino/resource-groups.json"
@@ -59,6 +67,53 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
         self.assertEqual(100, group["maxQueued"])
         self.assertEqual("80%", group["softMemoryLimit"])
         self.assertEqual([{"user": ".*", "group": "global"}], data["selectors"])
+
+    def test_canary_resource_group_allows_two_running_queries(self):
+        resource_groups = ROOT / "trino/resource-groups.canary-hard2.json"
+        self.assertTrue(resource_groups.exists(), "canary resource group file must exist")
+        data = json.loads(resource_groups.read_text(encoding="utf-8"))
+        self.assertEqual(1, len(data["rootGroups"]))
+        group = data["rootGroups"][0]
+        self.assertEqual("global", group["name"])
+        self.assertEqual(2, group["hardConcurrencyLimit"])
+        self.assertEqual(100, group["maxQueued"])
+        self.assertEqual("80%", group["softMemoryLimit"])
+        self.assertEqual([{"user": ".*", "group": "global"}], data["selectors"])
+
+    def test_canary_overlay_is_explicit_and_uses_reduced_query_memory(self):
+        overlay = ROOT / "docker-compose.trino-hard2-canary.yml"
+        self.assertTrue(overlay.exists(), "canary overlay must exist")
+        text = overlay.read_text(encoding="utf-8")
+        self.assertIn(
+            "./trino/resource-groups.canary-hard2.json:/etc/trino/resource-groups.json:ro",
+            text,
+        )
+        self.assertIn(
+            "TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_CANARY_QUERY_MAX_MEMORY_PER_NODE:-1280MB}",
+            text,
+        )
+        self.assertIn(
+            "TRINO_QUERY_MAX_MEMORY: ${TRINO_CANARY_QUERY_MAX_MEMORY:-1280MB}",
+            text,
+        )
+        self.assertIn(
+            "TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_CANARY_QUERY_MAX_TOTAL_MEMORY:-2560MB}",
+            text,
+        )
+        self.assertIn(
+            "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_CANARY_MEMORY_HEAP_HEADROOM_PER_NODE:-2GB}",
+            text,
+        )
+        self.assertIn(
+            "TRINO_TASK_CONCURRENCY: ${TRINO_CANARY_TASK_CONCURRENCY:-2}",
+            text,
+        )
+        self.assertNotIn("${TRINO_QUERY_MAX_MEMORY_PER_NODE:-", text)
+        self.assertNotIn("${TRINO_QUERY_MAX_MEMORY:-", text)
+        self.assertNotIn("${TRINO_QUERY_MAX_TOTAL_MEMORY:-", text)
+        self.assertNotIn("${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-", text)
+        self.assertNotIn("${TRINO_TASK_CONCURRENCY:-", text)
+        self.assertNotIn("docker-compose.trino-hard2-canary.yml", self.compose)
 
     def test_resource_group_files_are_mounted(self):
         manager = ROOT / "trino/resource-groups.properties"
@@ -78,11 +133,15 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             self.compose,
         )
 
-    def test_airflow_pool_is_bootstrapped_idempotently(self):
-        self.assertIn(
+    def test_airflow_pools_are_bootstrapped_idempotently(self):
+        expected_pool_commands = {
+            'airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"',
+            'airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"',
             'airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"',
-            self.compose,
-        )
+        }
+        for command in expected_pool_commands:
+            with self.subTest(command=command):
+                self.assertIn(command, self.compose)
 
 
 if __name__ == "__main__":

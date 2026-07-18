@@ -203,6 +203,44 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
             with self.subTest(binding=binding):
                 self.assertIn(binding, self.base)
 
+    def test_marquez_services_are_always_on_and_supervised(self) -> None:
+        for service_name in ("marquez-db", "marquez-api", "marquez-web"):
+            with self.subTest(service=service_name):
+                service_block = re.search(
+                    rf"(?ms)^  {re.escape(service_name)}:\r?\n(?P<block>.*?)(?=^  [a-z][a-z0-9-]+:|\Z)",
+                    self.base,
+                )
+                self.assertIsNotNone(service_block)
+                block = service_block.group("block")
+                self.assertNotIn("profiles:", block)
+                self.assertIn("restart: unless-stopped", block)
+
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-db:\r?\n.*?mem_limit: 512m",
+        )
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-api:\r?\n.*?mem_limit: 1536m",
+        )
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-web:\r?\n.*?mem_limit: 256m",
+        )
+
+    def test_marquez_api_disables_search_and_has_admin_healthcheck(self) -> None:
+        self.assertIn('SEARCH_ENABLED: "false"', self.base)
+        self.assertIn('JAVA_OPTS: "-XX:MaxRAMPercentage=50"', self.base)
+        self.assertIn("http://localhost:5001/healthcheck", self.base)
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-api:\r?\n.*?healthcheck:\r?\n.*?curl --fail http://localhost:5001/healthcheck",
+        )
+        self.assertRegex(
+            self.base,
+            r"(?ms)^  marquez-web:\r?\n.*?depends_on:\r?\n      marquez-api:\r?\n        condition: service_healthy",
+        )
+
     def test_docker_compose_merges_environment_without_global_listener(self) -> None:
         if shutil.which("docker") is None:
             self.skipTest("Docker CLI is not installed")
@@ -267,7 +305,16 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
         guide = GUIDE.read_text(encoding="utf-8")
         required_fragments = (
             "docker-compose.traffic-weather-lineage.yml",
-            "--profile lineage",
+            "Marquez always-on",
+            "SEARCH_ENABLED=false",
+            "trino_traffic_heavy=1",
+            "trino_weather_heavy=1",
+            "hardConcurrencyLimit=1",
+            "docker-compose.trino-hard2-canary.yml",
+            "hardConcurrencyLimit=2",
+            "1280MB",
+            "2560MB",
+            "headroom 2GB",
             "enable_lineage()",
             "ask-seoul-dev-airflow",
             "commerce-elt",
@@ -298,6 +345,8 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, guide)
+
+        self.assertNotIn("--profile lineage", guide)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,8 @@ if ($WhatIf) {
   Write-Output "WhatIf: requested_ref origin/dev"
   Write-Output "WhatIf: dags $($lock.dags.sha) -> $($lock.dags.worktree_path)"
   Write-Output "WhatIf: dbt $($lock.dbt.sha) -> $($lock.dbt.worktree_path)"
+  Write-Output "WhatIf: lineage overlay $($lock.lineage_overlay_path)"
+  Write-Output "WhatIf: lineage overlay sha256 $($lock.lineage_overlay_sha256)"
   Write-Output "WhatIf: compose override $($lock.compose_override_path)"
   return
 }
@@ -29,13 +31,18 @@ try {
   Write-DevComposeOverride -Lock $lock | Out-Null
 
   Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('config', '--quiet') | Out-Null
-  Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('up', '-d', '--build', '--wait') | Out-Null
+  # Compose reuses unchanged containers even when the compose file set changes,
+  # leaving stale project.config_files labels. Recreate the full dev stack so
+  # the verifier's exact 3-file deployment evidence is self-healing.
+  Invoke-DevDockerCompose -RootPath $root -Lock $lock -Arguments @('up', '-d', '--build', '--wait', '--force-recreate') | Out-Null
   & (Join-Path $PSScriptRoot 'verify-dev-deploy.ps1') | Out-Null
 
   Write-Output "requested_ref origin/dev"
   Write-Output "dags $($lock.dags.sha) -> $($lock.dags.worktree_path)"
   Write-Output "dbt $($lock.dbt.sha) -> $($lock.dbt.worktree_path)"
   Write-Output "deployment lock $($lock.deployment_lock_path)"
+  Write-Output "lineage overlay $($lock.lineage_overlay_path)"
+  Write-Output "lineage overlay sha256 $($lock.lineage_overlay_sha256)"
   Write-Output "compose override $($lock.compose_override_path)"
 }
 finally {
