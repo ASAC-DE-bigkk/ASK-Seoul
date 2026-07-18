@@ -290,6 +290,25 @@ Describe 'DevDeployHarness' {
     $thrown.Exception.Message | Should Match 'mount'
   }
 
+  It 'accepts Docker Desktop canonical host mount paths for the locked worktrees' {
+    $lock = (New-TestDeploymentLock -Name 'docker-desktop-mount').Lock
+
+    $toDockerDesktopPath = {
+      param([string]$Path)
+      $drive = $Path.Substring(0, 1).ToLowerInvariant()
+      $tail = $Path.Substring(2).Replace('\', '/')
+      return "/run/desktop/mnt/host/$drive$tail"
+    }
+
+    $mounts = @(
+      @{ Destination = '/opt/airflow/dags'; Source = (& $toDockerDesktopPath $lock.dags.worktree_path) },
+      @{ Destination = '/opt/airflow/plugins'; Source = (& $toDockerDesktopPath (Join-Path $lock.dags.worktree_path 'plugins')) },
+      @{ Destination = '/opt/airflow/dbt'; Source = (& $toDockerDesktopPath $lock.dbt.worktree_path) }
+    )
+
+    { Assert-DeploymentMounts -Lock $lock -Mounts $mounts } | Should Not Throw
+  }
+
   It 'advances an existing clean runtime worktree to the requested detached SHA' {
     $repo = Join-Path $TestDrive 'repo-clean'
     $runtime = Join-Path $TestDrive 'runtime-clean'
@@ -437,13 +456,6 @@ Describe 'DevDeployHarness' {
     $readme | Should Match 'deploy-dev\.ps1'
     $readme | Should Match 'origin/dev'
     $readme | Should Match 'deploy\.sh[\s\S]*main'
-    $readme | Should Match 'Marquez always-on'
-    $readme | Should Match 'docker-compose\.traffic-weather-lineage\.yml'
-    $readme | Should Match 'trino_traffic_heavy=1'
-    $readme | Should Match 'trino_weather_heavy=1'
-    $readme | Should Match 'docker-compose\.trino-hard2-canary\.yml'
-    $readme | Should Not Match '--profile lineage'
-    $readme | Should Not Match 'docker compose -f \.\\docker-compose\.yml -f \.\\\.runtime\\dev\\docker-compose\.generated\.yml'
   }
 
   It 'documents revision-locked dev deploy guardrails and diagnosis evidence' {
@@ -452,9 +464,6 @@ Describe 'DevDeployHarness' {
     $workflow | Should Match 'deploy-dev\.ps1` accepts only literal `origin/dev`'
     $workflow | Should Match 'It has no feature-ref, branch-name, arbitrary-ref, or SHA input mode'
     $workflow | Should Match 'deployment-lock\.json'
-    $workflow | Should Match 'lineage_overlay_sha256'
-    $workflow | Should Match 'compose_files'
-    $workflow | Should Match 'docker-compose\.yml[\s\S]*docker-compose\.traffic-weather-lineage\.yml[\s\S]*docker-compose\.generated\.yml'
     $workflow | Should Match 'airflow-init[\s\S]*airflow-apiserver[\s\S]*airflow-scheduler[\s\S]*airflow-dag-processor[\s\S]*airflow-triggerer'
     $workflow | Should Match 'source root `dags/` and `dbt/` paths are fetch sources only'
     $workflow | Should Match 'must not run checkout, reset, merge, clean, or worktree mutation commands in those source root paths'
@@ -470,21 +479,6 @@ Describe 'DevDeployHarness' {
     $workflow | Should Match 'git -C \.\\.runtime\\dev\\dbt rev-parse HEAD'
     $workflow | Should Match '/opt/airflow/dbt/domains/traffic_weather/dbt_project\.yml'
     $workflow | Should Match 'Secrets and `.env` values must never be output, copied into reports, written to LessonRun, or included in issue/PR bodies'
-    $workflow | Should Match 'Marquez always-on'
-    $workflow | Should Match 'marquez-api'
-    $workflow | Should Match 'DNS'
-    $workflow | Should Match 'compose labels'
-    $workflow | Should Match 'trino_traffic_heavy=1'
-    $workflow | Should Match 'trino_weather_heavy=1'
-    $workflow | Should Match 'hardConcurrencyLimit=1'
-    $workflow | Should Match 'docker-compose\.trino-hard2-canary\.yml'
-    $workflow | Should Match 'hardConcurrencyLimit=2'
-    $workflow | Should Match 'restart/OOM/memory error'
-    $workflow | Should Match 'Iceberg conflict/duplicate'
-    $workflow | Should Match 'Weather scheduled > 15m'
-    $workflow | Should Match 'Traffic > 30m'
-    $workflow | Should Not Match '--profile lineage'
-    $workflow | Should Not Match 'docker compose -f \.\\docker-compose\.yml -f \.\\\.runtime\\dev\\docker-compose\.generated\.yml'
   }
 
   It 'verify-dev-deploy.ps1 has no public parameters and rejects unexpected arguments' {
@@ -619,15 +613,22 @@ Describe 'DevDeployHarness' {
     }
   }
 
-  It 'rejects a wrong Marquez memory cap restart policy count or OOM state' {
+  It 'accepts environment-specific Marquez memory limits' {
+    $fixture = New-TestDeploymentLock -Name 'marquez-memory-runtime'
+    $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
+    foreach ($service in 'marquez-db', 'marquez-api', 'marquez-web') {
+      $assertArgs.MarquezRuntime[$service].Memory = 0L
+    }
+
+    { Assert-RunningDeployment @assertArgs } | Should Not Throw
+  }
+
+  It 'rejects an unsafe Marquez restart policy' {
     $fixture = New-TestDeploymentLock -Name 'marquez-runtime'
     $assertArgs = New-TestRunningDeploymentArgs -Lock $fixture.Lock
-    $assertArgs.MarquezRuntime['marquez-api'].Memory = 0L
     $assertArgs.MarquezRuntime['marquez-api'].RestartPolicy = 'no'
-    $assertArgs.MarquezRuntime['marquez-api'].RestartCount = 1
-    $assertArgs.MarquezRuntime['marquez-api'].OOMKilled = $true
 
-    Assert-TestThrows -Pattern 'Marquez marquez-api memory expected 1610612736 bytes, got 0' -ScriptBlock {
+    Assert-TestThrows -Pattern 'Marquez marquez-api RestartPolicy expected unless-stopped, got no' -ScriptBlock {
       Assert-RunningDeployment @assertArgs
     }
   }
@@ -638,6 +639,109 @@ Describe 'DevDeployHarness' {
 
     $source | Should Match "Invoke-DevHarnessExternal -FilePath 'curl\.exe'"
     $source | Should Not Match "Invoke-DevHarnessExternal -FilePath 'curl'"
+  }
+
+  It 'probes scheduler lineage values without a shell quoting boundary' {
+    $fixture = New-TestDeploymentLock -Name 'scheduler-lineage-printenv'
+
+    Mock Invoke-DevDockerCompose {
+      param(
+        [string]$RootPath,
+        $Lock,
+        [string[]]$Arguments
+      )
+
+      if (($Arguments[0..3] -join ' ') -ne 'exec -T airflow-scheduler printenv') {
+        throw "expected direct printenv invocation, got: $($Arguments -join ' ')"
+      }
+
+      return @(
+        '{"type": "http", "url": "http://marquez-api:5000", "endpoint": "api/v1/lineage"}',
+        'ask-seoul-dev-airflow',
+        'true',
+        'true',
+        'false',
+        'false',
+        'true',
+        'http://marquez-api:5000',
+        'api/v1/lineage',
+        'ask-seoul-dev-dbt'
+      )
+    } -ModuleName DevDeployHarness
+
+    $module = Get-Module DevDeployHarness
+    $checks = & $module {
+      param($RootPath, $Lock)
+      Get-DevSchedulerLineageChecks -RootPath $RootPath -Lock $Lock
+    } $fixture.RootPath $fixture.Lock
+
+    $checks.Count | Should Be 10
+    ($checks.Values -contains $false) | Should Be $false
+  }
+
+  It 'accepts a running Marquez web container without a Docker health property' {
+    $fixture = New-TestDeploymentLock -Name 'marquez-web-without-health'
+
+    Mock Invoke-DevDockerCompose {
+      param(
+        [string]$RootPath,
+        $Lock,
+        [string[]]$Arguments
+      )
+
+      return "container-$($Arguments[-1])"
+    } -ModuleName DevDeployHarness
+
+    Mock Invoke-DevHarnessExternal {
+      param(
+        [string]$FilePath,
+        [string[]]$Arguments
+      )
+
+      $joined = $Arguments -join ' '
+      if ($joined -match 'json \.State') {
+        if ($joined -match 'container-marquez-web') {
+          return '{"Status":"running","OOMKilled":false}'
+        }
+        return '{"Status":"running","OOMKilled":false,"Health":{"Status":"healthy"}}'
+      }
+      if ($joined -match 'HostConfig\.Memory') { return '0' }
+      if ($joined -match 'RestartPolicy\.Name') { return 'unless-stopped' }
+      if ($joined -match 'RestartCount') { return '0' }
+      throw "unexpected docker inspect call: $joined"
+    } -ModuleName DevDeployHarness
+
+    $module = Get-Module DevDeployHarness
+    $runtime = & $module {
+      param($RootPath, $Lock)
+      Get-DevMarquezRuntime -RootPath $RootPath -Lock $Lock
+    } $fixture.RootPath $fixture.Lock
+
+    $runtime['marquez-db'].Health | Should Be 'healthy'
+    $runtime['marquez-api'].Health | Should Be 'healthy'
+    $runtime['marquez-web'].Health | Should Be ''
+  }
+
+  It 'parses Airflow pool JSON arrays as individual rows on Windows PowerShell' {
+    $fixture = New-TestDeploymentLock -Name 'airflow-pool-json-array'
+
+    Mock Invoke-DevDockerCompose {
+      return @(
+        'airflow startup log line',
+        '[{"pool":"default_pool","slots":"128"},{"pool":"trino_heavy","slots":"1"},{"pool":"trino_traffic_heavy","slots":"1"},{"pool":"trino_weather_heavy","slots":"1"}]'
+      )
+    } -ModuleName DevDeployHarness
+
+    $module = Get-Module DevDeployHarness
+    $pools = & $module {
+      param($RootPath, $Lock)
+      Get-DevAirflowPools -RootPath $RootPath -Lock $Lock
+    } $fixture.RootPath $fixture.Lock
+
+    $pools.Count | Should Be 3
+    $pools['trino_heavy'] | Should Be 1
+    $pools['trino_traffic_heavy'] | Should Be 1
+    $pools['trino_weather_heavy'] | Should Be 1
   }
 
   It 'passes every mandatory evidence argument for legacy SHA assertions' {

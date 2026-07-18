@@ -68,10 +68,9 @@ services:
   marquez-db:
     image: postgres:16-alpine
     restart: unless-stopped
-    mem_limit: 512m
     environment:
       POSTGRES_USER: ${MARQUEZ_POSTGRES_USER:-marquez}
-      POSTGRES_PASSWORD: ${MARQUEZ_POSTGRES_PASSWORD:-marquez}
+      POSTGRES_PASSWORD: ${MARQUEZ_POSTGRES_PASSWORD:-marquez}   # dev 기본값 — prod 는 .env 로 교체
       POSTGRES_DB: ${MARQUEZ_POSTGRES_DB:-marquez}
     volumes:
       - marquez_db_data:/var/lib/postgresql/data
@@ -88,12 +87,10 @@ services:
     # OpenLineage 수집 API + lineage 저장. 기동 시 flyway 마이그레이션 자동 수행.
     image: marquezproject/marquez:0.50.0
     restart: unless-stopped
-    mem_limit: 1536m
     environment:
       MARQUEZ_PORT: "5000"
       MARQUEZ_ADMIN_PORT: "5001"
       SEARCH_ENABLED: "false"
-      JAVA_OPTS: "-XX:MaxRAMPercentage=50"
       POSTGRES_HOST: marquez-db
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${MARQUEZ_POSTGRES_DB:-marquez}
@@ -119,11 +116,10 @@ services:
     # lineage 시각화 UI → 브라우저 http://127.0.0.1:3000
     image: marquezproject/marquez-web:0.50.0
     restart: unless-stopped
-    mem_limit: 256m
     environment:
       MARQUEZ_HOST: marquez-api
       MARQUEZ_PORT: "5000"
-      WEB_PORT: "3000"
+      WEB_PORT: "3000"        # 없으면 setupProxy.js 가 undefined 포트로 리슨 → 3000 접속 불가
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:

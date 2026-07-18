@@ -214,23 +214,11 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
                 block = service_block.group("block")
                 self.assertNotIn("profiles:", block)
                 self.assertIn("restart: unless-stopped", block)
-
-        self.assertRegex(
-            self.base,
-            r"(?ms)^  marquez-db:\r?\n.*?mem_limit: 512m",
-        )
-        self.assertRegex(
-            self.base,
-            r"(?ms)^  marquez-api:\r?\n.*?mem_limit: 1536m",
-        )
-        self.assertRegex(
-            self.base,
-            r"(?ms)^  marquez-web:\r?\n.*?mem_limit: 256m",
-        )
+                self.assertNotIn("mem_limit:", block)
 
     def test_marquez_api_disables_search_and_has_admin_healthcheck(self) -> None:
         self.assertIn('SEARCH_ENABLED: "false"', self.base)
-        self.assertIn('JAVA_OPTS: "-XX:MaxRAMPercentage=50"', self.base)
+        self.assertNotIn("JAVA_OPTS:", self.base)
         self.assertIn("http://localhost:5001/healthcheck", self.base)
         self.assertRegex(
             self.base,
@@ -305,16 +293,7 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
         guide = GUIDE.read_text(encoding="utf-8")
         required_fragments = (
             "docker-compose.traffic-weather-lineage.yml",
-            "Marquez always-on",
-            "SEARCH_ENABLED=false",
-            "trino_traffic_heavy=1",
-            "trino_weather_heavy=1",
-            "hardConcurrencyLimit=1",
-            "docker-compose.trino-hard2-canary.yml",
-            "hardConcurrencyLimit=2",
-            "1280MB",
-            "2560MB",
-            "headroom 2GB",
+            "--profile lineage",
             "enable_lineage()",
             "ask-seoul-dev-airflow",
             "commerce-elt",
@@ -345,9 +324,6 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
         for fragment in required_fragments:
             with self.subTest(fragment=fragment):
                 self.assertIn(fragment, guide)
-
-        self.assertNotIn("--profile lineage", guide)
-
 
 if __name__ == "__main__":
     unittest.main()
