@@ -10,3 +10,4 @@
 [submodule "dashboard"]
 	path = dashboard
 	url = https://github.com/ASAC-DE-bigkk/ASK-Seoul-Dashboard.git
+	branch = main

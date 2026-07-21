@@ -54,7 +54,7 @@ Verified:
 | `dbt/elt_smoke` | dbt medallion smoke project |
 | `dbt/elt_smoke/seeds/sample_events.csv` | Source fixture used by Airflow to simulate external API data |
 | `dags/dbt_trino_iceberg_smoke.py` | Airflow DAG for R2 raw upload, bronze load, and dbt validation |
-| `scripts/update-nested-git.sh` | Pulls the nested DAG and dbt repositories before deployment |
+| `scripts/update-nested-git.sh` | 선택한 서브모듈을 `.gitmodules`의 추적 브랜치로 fast-forward (`dashboard` 단독 갱신 지원) |
 | `scripts/deploy.sh` | nested repo를 `origin/main` 기준으로 갱신한 뒤 Docker Compose를 rebuild 기동 |
 | `scripts/deploy-dev.ps1` | 병합된 `origin/dev` DAG/dbt revision만 locked runtime worktree로 배포 |
 | `scripts/verify-dev-deploy.ps1` | 실행 중인 locked dev deployment를 deployment lock 기준으로 검증 |
@@ -146,7 +146,7 @@ docker compose up -d --force-recreate trino
 
 ## Start Local Services
 
-`scripts/deploy.sh`는 main 기반 배포 경로다. 이 스크립트는 `scripts/update-nested-git.sh`를 실행하고, 두 nested repository 내부에서 `main`을 checkout한 뒤 `origin/main`을 fast-forward하고 Docker Compose를 rebuild 기동한다. `origin/dev`를 lock하거나 검증하지 않으므로 merged `dev` runtime validation에는 사용하지 않는다.
+`scripts/deploy.sh`는 main 기반 배포 경로다. 이 스크립트는 `scripts/update-nested-git.sh dags dbt`를 실행하고, 두 nested repository 내부에서 `.gitmodules`에 지정된 `main`을 checkout한 뒤 `origin/main`을 fast-forward하고 Docker Compose를 rebuild 기동한다. Dashboard는 이 Airflow/Trino 배포 입력이 아니므로 함께 전환하지 않는다. `origin/dev`를 lock하거나 검증하지 않으므로 merged `dev` runtime validation에는 사용하지 않는다.
 
 ```bash
 ./scripts/deploy.sh
@@ -203,12 +203,27 @@ The nested repositories are configured as:
 | --- | --- |
 | `dags` | `https://github.com/ASAC-DE-bigkk/ASAC-DAG` |
 | `dbt` | `https://github.com/ASAC-DE-bigkk/ASAC-DBT` |
+| `dashboard` | `https://github.com/ASAC-DE-bigkk/ASK-Seoul-Dashboard.git` |
 
 To update only DAG/dbt without restarting services:
 
 ```bash
 ./scripts/update-nested-git.sh
 ```
+
+상위 저장소의 Dashboard gitlink는 통합 검증 버전을 재현하기 위한 고정값이다. 이미 Dashboard
+저장소에 병합된 최신 `main`을 로컬에서 실행하는 데 상위 gitlink 갱신 PR이 매번 필요하지는 않다.
+로컬 Dashboard만 최신화하려면 `sample/` 루트에서 다음 명령을 실행한다.
+
+```bash
+./scripts/update-nested-git.sh dashboard
+```
+
+이 명령은 Dashboard 작업 트리가 dirty하면 중단하고, 깨끗한 경우에만 `main`을 checkout해
+`origin/main`으로 fast-forward한다. 아직 커밋하지 않은 Dashboard 변경이나 feature branch를
+그대로 시험하려면 이 명령을 실행하지 말고 현재 `dashboard/` checkout에서 앱을 기동한다.
+Dashboard 최신화 뒤 상위 저장소에서 `M dashboard`가 보이는 것은 gitlink와 로컬 실행 revision이
+다르다는 뜻이며 정상이다. 통합 버전을 승격하는 별도 작업이 아니라면 이를 stage하거나 커밋하지 않는다.
 
 Merged dev local validation routine:
 
