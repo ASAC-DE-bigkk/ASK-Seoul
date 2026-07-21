@@ -24,7 +24,7 @@ HERE = Path(__file__).parent
 SAMPLE = HERE.parent
 MANIFEST = SAMPLE / "dbt" / "domains" / "citydata" / "target" / "manifest.json"
 BUILD = HERE / "build"
-DB_NAME = "ask-seoul-citydata"
+DB_NAME = "ask-seoul-dev-d1"
 SCHEMA = "iceberg_dev.seoul_citydata"
 
 EXPORT_TABLES = [
