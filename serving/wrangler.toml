@@ -1,0 +1,14 @@
+# citydata 골드 서빙 API — Cloudflare Workers + D1 (프로토타입)
+# 설계: dbt/domains/citydata/docs/superpowers/specs/2026-07-17-citydata-gold-serving-api-design.md
+name = "ask-seoul-citydata-api"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+# D1/Workers 는 본인 계정에 배포 (dev — 팀 계정 결정 시 이관, specs §2).
+# .env 의 CLOUDFLARE_ACCOUNT_ID 는 R2(seoul-dev, 타 계정)용이라 여기서 오버라이드한다.
+account_id = "14ccb01681dc60a37f0d3c5baaa58588"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ask-seoul-citydata"
+# 로컬(dev/--local)은 이 id 를 쓰지 않는다(Miniflare 로컬 sqlite).
+database_id = "91ea7514-98bd-4c73-9ab9-cb3662ee8b11"
