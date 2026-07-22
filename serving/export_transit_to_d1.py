@@ -48,7 +48,11 @@ MODE_TABLES = {
 
 APPEND_LOOKBACK_H = 2   # timestamp 축: 재적재할 최근 시간 수 (late-arrival 여유)
 APPEND_LOOKBACK_D = 2   # date 축: 재적재할 최근 일 수
-STALE_THRESHOLD_MIN = 30
+# 신선도 임계: dong_now 는 15분 버킷 아카이브의 '마지막 관측 버킷' 기반이라
+# (gold_transit_dong_now.sql — 아카이브 프런티어 설계) 버킷 완결 대기 + 변환 15분이
+# 겹치면 건강한 상태에서도 ~50분 지연이 실측됨(2026-07-21, silver 는 신선).
+# 30분은 이 내재 지연을 오탐 — 실측 + 여유로 75분.
+STALE_THRESHOLD_MIN = 75
 FRESHNESS_CHECK = set(FAST_TABLES)
 
 SQLITE_TYPE = {  # trino → sqlite
