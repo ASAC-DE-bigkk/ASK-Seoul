@@ -1,4 +1,4 @@
-# serving/ — citydata 골드 D1 서빙 API (프로토타입)
+# serving/ — 골드 D1 서빙 API (citydata + transit, 프로토타입)
 
 Rapid API식 1차 목표(7/16 회의)의 실물: 골드를 Cloudflare D1로 export하고 Workers가
 조회 전용 REST로 서빙한다. 설계 정본:
@@ -13,9 +13,10 @@ Rapid API식 1차 목표(7/16 회의)의 실물: 골드를 Cloudflare D1로 expo
 
 | 파일 | 역할 |
 |---|---|
-| `export_gold_to_d1.py` | 골드 12종 → D1 (DROP+CREATE+INSERT 통짜 SQL, 증분 upsert 금지). `_catalog` 는 dbt manifest(description·serving_tier·테스트 게이트)에서 파생 |
+| `export_gold_to_d1.py` | citydata 골드 12종 → D1 (DROP+CREATE+INSERT 통짜 SQL, 증분 upsert 금지). `_catalog` 는 dbt manifest(description·serving_tier·테스트 게이트)에서 파생. ⚠️ `_catalog` 를 DROP 재생성 — transit 행이 지워지므로 **remote 실행 금지** (citydata 정식 경로는 DAG `citydata_serving_export`) |
+| `export_transit_to_d1.py` | transit 골드 1차 6종 → D1. `--mode fast\|hourly\|full` 3-tier(15분 스냅샷 2종 · 매시 append 1종 · 일별 3종), `_catalog` 는 공유라 upsert 만. 신선도 게이트 30분 |
 | `src/index.js` | Workers — `/catalog`(Agent 진입점) · `/data/{table}` (컬럼 화이트리스트 등호 필터 + `from`/`to` 시간축 + `limit`) · 요청 로그 D1 append |
-| `wrangler.toml` | D1 바인딩. 원격 배포 전 `database_id` 교체 필요 |
+| `wrangler.toml` | D1 바인딩 + `[env.transit]`(`ask-seoul-transit-api`, `TABLE_PREFIX=gold_transit_` 도메인 스코핑) |
 
 ## 로컬 실행 (인증 불필요 — Miniflare)
 
@@ -34,6 +35,7 @@ curl "localhost:8787/data/gold_citydata_ppltn_daily?from=2026-07-10&to=2026-07-1
 npx wrangler d1 create ask-seoul-citydata   # 출력된 database_id 를 wrangler.toml 에 반영
 python export_gold_to_d1.py --remote
 npx wrangler deploy                          # → https://ask-seoul-citydata-api.<subdomain>.workers.dev
+npx wrangler deploy --env transit            # → https://ask-seoul-transit-api.<subdomain>.workers.dev
 # 철거: npx wrangler delete && npx wrangler d1 delete ask-seoul-citydata
 ```
 

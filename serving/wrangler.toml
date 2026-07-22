@@ -12,3 +12,20 @@ binding = "DB"
 database_name = "ask-seoul-dev-d1"
 # 로컬(dev/--local)은 이 id 를 쓰지 않는다(Miniflare 로컬 sqlite).
 database_id = "9db0e851-558e-489f-9e76-f131d25aa267"
+
+# ── transit 전용 API (도메인별 Worker 분리 — ASK-Seoul#44) ──────────────
+# 같은 코드·같은 D1 을 쓰되 TABLE_PREFIX 로 서빙 범위를 도메인 스코핑한다.
+# 기본(citydata) env 는 무필터 유지 — 기존 URL·응답 불변.
+# 배포: npx wrangler deploy --env transit
+[env.transit]
+name = "ask-seoul-transit-api"
+
+[env.transit.vars]
+TABLE_PREFIX = "gold_transit_"
+SERVICE_NAME = "ask-seoul transit gold API (prototype)"
+
+# named env 는 바인딩을 상속하지 않는다 — D1 을 재선언
+[[env.transit.d1_databases]]
+binding = "DB"
+database_name = "ask-seoul-dev-d1"
+database_id = "9db0e851-558e-489f-9e76-f131d25aa267"

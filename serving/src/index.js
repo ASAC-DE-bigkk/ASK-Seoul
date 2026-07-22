@@ -9,6 +9,9 @@
  *   - limit          기본 500, 최대 5000
  *
  * 원칙: 스냅샷 조회 전용(쓰기 없음), 요청 로그는 D1 한 줄 append (7/16 회의).
+ *
+ * 도메인 스코핑: env.TABLE_PREFIX 가 설정된 배포(wrangler [env.transit] 등)는
+ * 그 프리픽스의 테이블만 서빙한다 — 같은 D1 을 도메인별 Worker 가 나눠 노출.
  */
 
 const json = (data, status = 200) =>
@@ -27,10 +30,14 @@ async function catalogRows(env) {
   const { results } = await env.DB.prepare(
     "SELECT name, description, serving_tier, tests, time_axis, columns, row_count, exported_at FROM _catalog ORDER BY name"
   ).all();
-  return results.map((r) => ({ ...r, tests: JSON.parse(r.tests), columns: JSON.parse(r.columns) }));
+  // 카탈로그는 소형(수십 행) — 도메인 스코핑은 JS 필터로 (LIKE 의 '_' 와일드카드 회피)
+  const scoped = env.TABLE_PREFIX ? results.filter((r) => r.name.startsWith(env.TABLE_PREFIX)) : results;
+  return scoped.map((r) => ({ ...r, tests: JSON.parse(r.tests), columns: JSON.parse(r.columns) }));
 }
 
 async function handleData(env, table, params) {
+  if (env.TABLE_PREFIX && !table.startsWith(env.TABLE_PREFIX))
+    return problem(404, "unknown table", `'${table}' 은 이 API 의 서빙 범위가 아니다 — GET /catalog 참조`);
   const meta = await env.DB.prepare("SELECT * FROM _catalog WHERE name = ?").bind(table).first();
   if (!meta) return problem(404, "unknown table", `'${table}' 은 서빙 카탈로그에 없다 — GET /catalog 참조`);
 
@@ -73,7 +80,7 @@ export default {
     try {
       if (url.pathname === "/") {
         return json({
-          service: "ask-seoul citydata gold API (prototype)",
+          service: env.SERVICE_NAME || "ask-seoul citydata gold API (prototype)",
           endpoints: ["/catalog", "/data/{table}?<col>=<val>&from=&to=&limit="],
           note: "소비자는 Agent — /catalog 의 description 을 읽고 테이블을 고른다",
         });
