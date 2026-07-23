@@ -134,12 +134,13 @@ def main() -> None:
             "row_count": len(rows), "exported_at": now,
         })
 
-    cat = ['DROP TABLE IF EXISTS _catalog;',
-           'CREATE TABLE _catalog (name TEXT PRIMARY KEY, description TEXT, serving_tier TEXT, '
+    # DAG(citydata_serving_export, #477) 정렬: DROP 금지 — upsert 로 미포함 테이블 카탈로그 행
+    # 보존 + DROP~CREATE 사이 _catalog 부재(서빙 500 윈도우) 제거. 같은 라이브 팀 D1 을 탄다.
+    cat = ['CREATE TABLE IF NOT EXISTS _catalog (name TEXT PRIMARY KEY, description TEXT, serving_tier TEXT, '
            'tests TEXT, time_axis TEXT, columns TEXT, row_count INTEGER, exported_at TEXT);',
            'CREATE TABLE IF NOT EXISTS _request_log (ts TEXT, path TEXT, query TEXT);']
     for r in catalog_rows:
-        cat.append("INSERT INTO _catalog VALUES (" + ", ".join(sql_literal(r[k]) for k in
+        cat.append("INSERT OR REPLACE INTO _catalog VALUES (" + ", ".join(sql_literal(r[k]) for k in
                    ("name", "description", "serving_tier", "tests", "time_axis", "columns", "row_count", "exported_at")) + ");")
     f = BUILD / "_catalog.sql"
     f.write_text("\n".join(cat), encoding="utf-8")
