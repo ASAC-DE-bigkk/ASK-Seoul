@@ -56,11 +56,19 @@
   .keychip.on { border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent-deep); font-weight:600; }
 
   .content { padding:26px 28px 60px; max-width:1120px; }
-  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:22px; }
-  .stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
-  .stat .l { font-size:11px; font-weight:700; letter-spacing:.05em; color:var(--faint); }
-  .stat .v { font-size:21px; font-weight:800; letter-spacing:-0.02em; font-variant-numeric:tabular-nums; margin-top:2px; }
-  .stat .v small { font-size:12px; font-weight:600; color:var(--muted); }
+  .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+  .step { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px;
+          display:flex; gap:13px; align-items:flex-start; cursor:pointer; }
+  .step:hover { border-color:var(--accent); }
+  .step .num { width:26px; height:26px; flex:none; border-radius:50%; background:var(--accent-soft);
+               color:var(--accent-deep); font-weight:800; font-size:13px; display:flex;
+               align-items:center; justify-content:center; margin-top:1px; }
+  .step .tt { font-weight:700; font-size:13.5px; }
+  .step .dd { font-size:12px; color:var(--muted); margin-top:2px; }
+  .terms { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 24px; }
+  .terms span { font-size:11.5px; font-weight:600; color:var(--muted); background:var(--panel);
+                border:1px solid var(--line); border-radius:999px; padding:3px 11px; }
+  .terms span b { color:var(--accent-deep); }
 
   .auth { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px;
           margin-bottom:26px; display:grid; grid-template-columns:1fr 1fr; gap:22px; }
@@ -171,7 +179,8 @@
     </div>
 
     <div class="content">
-      <div class="stats" id="stats"></div>
+      <div class="steps" id="steps"></div>
+      <div class="terms" id="terms"></div>
 
       <div class="auth" id="auth">
         <div>
@@ -194,7 +203,7 @@
         </div>
       </div>
 
-      <div class="sec-title"><h2 id="listTitle">전체 제품</h2><span class="hint" id="listHint"></span></div>
+      <div class="sec-title" id="catalog"><h2 id="listTitle">전체 제품</h2><span class="hint" id="listHint"></span></div>
       <div class="plist">
         <div class="phead"><span>제품</span><span>답하는 질문</span><span>행 수</span><span>조회 축</span><span></span></div>
         <div id="plistBody"></div>
@@ -263,7 +272,7 @@ const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
 async function boot() {
   const res = await fetch("/api/catalog");
   PRODUCTS = (await res.json()).products || [];
-  renderNav(); renderStats(); renderList(); renderSelect();
+  renderNav(); renderStart(); renderList(); renderSelect();
   updatePreview();
 }
 
@@ -289,14 +298,26 @@ function renderNav() {
   }
 }
 
-function renderStats() {
-  const total = PRODUCTS.reduce((s, p) => s + (p.row_count || 0), 0);
-  const live = new Set(PRODUCTS.map(domainOf)).size;
-  $("stats").innerHTML =
-    "<div class='stat'><div class='l'>제공 제품</div><div class='v'>" + PRODUCTS.length + "<small> 개</small></div></div>" +
-    "<div class='stat'><div class='l'>총 데이터</div><div class='v'>" + nf.format(total) + "<small> 행</small></div></div>" +
-    "<div class='stat'><div class='l'>서비스 도메인</div><div class='v'>" + live + "<small> / " + DOMAINS.length + "</small></div></div>" +
-    "<div class='stat'><div class='l'>갱신 주기</div><div class='v'>일 1회<small> · 04:30 KST</small></div></div>";
+function renderStart() {
+  const step = (n, tt, dd, hash) =>
+    "<div class='step' onclick=\"location.hash='" + hash + "'\"><div class='num'>" + n + "</div>" +
+    "<div><div class='tt'>" + tt + "</div><div class='dd'>" + dd + "</div></div></div>";
+  $("steps").innerHTML =
+    step(1, "API 키 받기", "이메일만 넣으면 즉시 발급됩니다", "#auth") +
+    step(2, "데이터 고르기", "답하고 싶은 질문으로 찾아보세요", "#catalog") +
+    step(3, "바로 호출하기", "curl 한 줄 · JSON 응답", "#playground");
+  $("terms").innerHTML =
+    "<span><b>무료</b> 프로토타입</span>" +
+    "<span>키당 하루 <b>1,000회</b> 호출</span>" +
+    "<span>매일 새벽 자동 갱신</span>" +
+    "<span>REST · JSON 표준</span>";
+}
+function fmtFresh(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const kst = new Date(d.getTime() + 9 * 3600 * 1000);
+  return kst.toISOString().slice(0, 16).replace("T", " ") + " KST";
 }
 
 function visible() {
@@ -333,7 +354,8 @@ function renderList() {
       "<div class='dhead'>엔드포인트</div>" +
       "<div class='endpoint'><span class='m'>GET</span> /api/data/" + p.name + "?limit=100" +
       (p.time_axis ? "&from=2026-07-01&to=2026-07-31" : "") + "</div>" +
-      "<div class='dhead' style='margin-top:12px'>스키마 · " + cols.length + "컬럼" + (d.unit ? " · 그레인: " + d.unit : "") + "</div>" +
+      "<div class='dhead' style='margin-top:12px'>스키마 · " + cols.length + "컬럼" + (d.unit ? " · 그레인: " + d.unit : "") +
+      (p.exported_at ? " · 마지막 갱신 " + fmtFresh(p.exported_at) : "") + "</div>" +
       "<div class='cols'>" + cols.map((c) =>
         "<div class='col-item'><code>" + c.name + "</code><span class='ty'>" + c.type + "</span></div>").join("") + "</div>";
     row.addEventListener("click", (e) => {
