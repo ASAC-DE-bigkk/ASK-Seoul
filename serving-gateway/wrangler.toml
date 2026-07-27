@@ -1,0 +1,17 @@
+# serving-gateway — V1 마켓플레이스 프로토타입 (ASK-Seoul#58)
+# ⚠️ 로컬 전용: wrangler dev --local 로만 구동한다. deploy 는 멘토 게이트(#476 ①·ASAC-DAG#521-(B)).
+# 로컬 모드는 아래 database_id 를 쓰지 않고 Miniflare 로컬 sqlite 를 만든다 —
+# 시드는 `npm run seed` (migrations + fixtures 를 --local 로 적용).
+name = "ask-seoul-gateway"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+[assets]
+directory = "public"
+# API 라우트(/api/*)는 Worker 로, 그 외 정적 파일은 Assets 가 서빙
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ask-seoul-dev-d1"
+database_id = "9db0e851-558e-489f-9e76-f131d25aa267"

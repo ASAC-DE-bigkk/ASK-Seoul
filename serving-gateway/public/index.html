@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASK Seoul — 데이터 API 마켓플레이스 (프로토타입)</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#6b7280; --line:#e5e7eb; --accent:#0f6e56; --bg:#fafaf8; }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; }
+  .wrap { max-width:880px; margin:0 auto; padding:32px 20px 80px; }
+  h1 { font-size:22px; font-weight:600; }
+  h2 { font-size:16px; font-weight:600; margin-bottom:10px; }
+  .sub { color:var(--muted); font-size:13px; margin:4px 0 28px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:18px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  input[type=email], input[type=text] { flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
+  button { padding:9px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:14px; cursor:pointer; }
+  button:hover { opacity:.9; }
+  code, pre { font-family:ui-monospace,Consolas,monospace; font-size:12.5px; }
+  pre { background:#f3f4f1; border-radius:8px; padding:12px; overflow-x:auto; }
+  .key-box { display:none; margin-top:12px; padding:12px; border:1px dashed var(--accent); border-radius:8px; background:#f0faf6; }
+  .key-box code { font-size:14px; font-weight:600; word-break:break-all; }
+  .warn { color:#993c1d; font-size:12.5px; margin-top:6px; }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; word-break:keep-all; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; background:#e1f5ee; color:#085041; }
+  .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .muted { color:var(--muted); font-size:12.5px; }
+  .err { color:#a32d2d; font-size:13px; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ASK Seoul 데이터 API</h1>
+  <p class="sub">서울 문화행사 gold 마트를 API로 제공합니다 — 키 발급 후 바로 호출 (프로토타입 · 로컬)</p>
+
+  <div class="card">
+    <h2>1. API 키 발급</h2>
+    <div class="row">
+      <input type="email" id="email" placeholder="이메일 (키 1개 / 재요청 시 재발급)" autocomplete="email">
+      <button id="issue">키 발급</button>
+    </div>
+    <div class="key-box" id="keyBox">
+      <div>발급된 키: <code id="keyValue"></code></div>
+      <div class="warn">이 키는 지금 한 번만 표시됩니다. 서버에는 해시만 저장되어 다시 보여드릴 수 없습니다.</div>
+    </div>
+    <div class="err" id="issueErr"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. 카탈로그</h2>
+    <table id="catalog"><thead><tr><th>product</th><th>질문</th><th>시간축</th><th class="num">행수</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="card">
+    <h2>3. 호출해 보기</h2>
+    <div class="row">
+      <input type="text" id="tryKey" placeholder="발급받은 키 (ask_…)">
+      <input type="text" id="tryTable" placeholder="테이블 이름 (카탈로그의 name)">
+      <button id="tryBtn">호출</button>
+      <button id="meBtn" style="background:#5f5e5a">내 사용량</button>
+    </div>
+    <pre id="tryOut" style="margin-top:12px">curl -H "Authorization: Bearer ask_…" "http://localhost:8787/api/data/&lt;table&gt;?limit=5"</pre>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function loadCatalog() {
+  const res = await fetch("/api/catalog");
+  const body = await res.json();
+  const tbody = $("catalog").querySelector("tbody");
+  tbody.innerHTML = "";
+  for (const p of body.products || []) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = "<td><code>" + p.name + "</code><br><span class='pill'>" + (p.product_id || "-") + "</span></td>" +
+      "<td>" + (p.product_question || "<span class='muted'>—</span>") + "</td>" +
+      "<td>" + (p.time_axis || "<span class='muted'>—</span>") + "</td>" +
+      "<td class='num'>" + (p.row_count ?? "—").toLocaleString?.() + "</td>";
+    tbody.appendChild(tr);
+  }
+}
+
+$("issue").addEventListener("click", async () => {
+  $("issueErr").textContent = "";
+  const res = await fetch("/api/keys", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: $("email").value }),
+  });
+  const body = await res.json();
+  if (!res.ok) { $("issueErr").textContent = body.detail || body.title; return; }
+  $("keyValue").textContent = body.key + (body.rotated ? "  (기존 키는 폐기됨)" : "");
+  $("keyBox").style.display = "block";
+  $("tryKey").value = body.key;
+});
+
+async function callApi(path) {
+  const res = await fetch(path, { headers: { authorization: "Bearer " + $("tryKey").value.trim() } });
+  const body = await res.json();
+  $("tryOut").textContent = "HTTP " + res.status + "\n" + JSON.stringify(body, null, 2).slice(0, 4000);
+}
+
+$("tryBtn").addEventListener("click", () => {
+  const t = $("tryTable").value.trim();
+  if (t) callApi("/api/data/" + encodeURIComponent(t) + "?limit=5");
+});
+$("meBtn").addEventListener("click", () => callApi("/api/me"));
+
+loadCatalog();
+</script>
+</body>
+</html>
