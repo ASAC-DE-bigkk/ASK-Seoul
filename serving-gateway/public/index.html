@@ -3,88 +3,328 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ASK Seoul — 데이터 API 마켓플레이스 (프로토타입)</title>
+<title>ASK: SEOUL 데이터 마켓플레이스</title>
 <style>
-  :root { --ink:#1a1a1a; --muted:#6b7280; --line:#e5e7eb; --accent:#0f6e56; --bg:#fafaf8; }
+  :root {
+    --bg:#f6f5f1; --card:#ffffff; --ink:#1c211f; --muted:#6a736e; --faint:#98a09b;
+    --line:#e5e6e1; --accent:#0e6e56; --accent-deep:#08503f; --accent-soft:#e4f2ec;
+    --amber-soft:#faf0dc; --amber-ink:#7a5410; --red-soft:#fae7e7; --red-ink:#8f2424;
+    --mono:ui-monospace,'Cascadia Code',Consolas,monospace; --radius:12px;
+  }
   * { box-sizing:border-box; margin:0; }
-  body { font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; }
-  .wrap { max-width:880px; margin:0 auto; padding:32px 20px 80px; }
-  h1 { font-size:22px; font-weight:600; }
-  h2 { font-size:16px; font-weight:600; margin-bottom:10px; }
-  .sub { color:var(--muted); font-size:13px; margin:4px 0 28px; }
-  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:18px; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; }
-  input[type=email], input[type=text] { flex:1; min-width:220px; padding:9px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
-  button { padding:9px 16px; border:0; border-radius:8px; background:var(--accent); color:#fff; font-size:14px; cursor:pointer; }
-  button:hover { opacity:.9; }
-  code, pre { font-family:ui-monospace,Consolas,monospace; font-size:12.5px; }
-  pre { background:#f3f4f1; border-radius:8px; padding:12px; overflow-x:auto; }
-  .key-box { display:none; margin-top:12px; padding:12px; border:1px dashed var(--accent); border-radius:8px; background:#f0faf6; }
-  .key-box code { font-size:14px; font-weight:600; word-break:break-all; }
-  .warn { color:#993c1d; font-size:12.5px; margin-top:6px; }
-  table { width:100%; border-collapse:collapse; font-size:13.5px; }
-  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; word-break:keep-all; }
-  th { color:var(--muted); font-weight:500; font-size:12px; }
-  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:11.5px; background:#e1f5ee; color:#085041; }
-  .num { text-align:right; font-variant-numeric:tabular-nums; }
-  .muted { color:var(--muted); font-size:12.5px; }
-  .err { color:#a32d2d; font-size:13px; margin-top:8px; }
+  html { scroll-behavior:smooth; }
+  body { font-family:'Pretendard Variable',Pretendard,system-ui,-apple-system,'Noto Sans KR',sans-serif;
+         background:var(--bg); color:var(--ink); line-height:1.65; word-break:keep-all; }
+  .wrap { max-width:1040px; margin:0 auto; padding:0 24px; }
+
+  header { border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:10; }
+  .nav { display:flex; align-items:center; gap:14px; height:58px; }
+  .brand { font-weight:800; font-size:16px; letter-spacing:-0.01em; }
+  .brand em { font-style:normal; color:var(--accent); }
+  .nav .divider { color:var(--line); }
+  .nav .label { font-size:13.5px; color:var(--muted); }
+  .nav .spacer { flex:1; }
+  .pill { font-size:11.5px; font-weight:600; padding:3px 10px; border-radius:999px; letter-spacing:.02em; }
+  .pill.local { background:var(--amber-soft); color:var(--amber-ink); }
+
+  .hero { padding:64px 0 40px; }
+  .hero h1 { font-size:34px; line-height:1.3; font-weight:800; letter-spacing:-0.02em; max-width:640px; }
+  .hero h1 .ul { box-shadow:inset 0 -0.45em 0 var(--accent-soft); }
+  .hero p { margin-top:14px; color:var(--muted); font-size:15.5px; max-width:560px; }
+
+  .issue-row { margin-top:28px; display:flex; gap:10px; max-width:560px; }
+  input, select { font:inherit; color:var(--ink); background:var(--card); border:1px solid var(--line);
+                  border-radius:10px; padding:11px 14px; outline:none; }
+  input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .issue-row input { flex:1; }
+  button { font:inherit; font-weight:600; border:0; border-radius:10px; padding:11px 18px; cursor:pointer; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { background:var(--accent-deep); }
+  .btn-ghost { background:transparent; color:var(--accent-deep); border:1px solid var(--line); }
+  .btn-ghost:hover { border-color:var(--accent); }
+  .btn-sm { padding:6px 12px; font-size:13px; border-radius:8px; }
+
+  .key-reveal { display:none; margin-top:14px; max-width:560px; background:var(--card);
+                border:1px solid var(--accent); border-radius:var(--radius); padding:14px 16px; }
+  .key-reveal .k { display:flex; align-items:center; gap:10px; }
+  .key-reveal code { font-family:var(--mono); font-size:14px; font-weight:600; word-break:break-all; flex:1; }
+  .key-reveal .note { margin-top:8px; font-size:12.5px; color:var(--red-ink); }
+  .form-err { margin-top:10px; font-size:13px; color:var(--red-ink); }
+
+  section { padding:36px 0 8px; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+  .sec-head h2 { font-size:20px; font-weight:800; letter-spacing:-0.01em; }
+  .sec-head .hint { font-size:13px; color:var(--faint); }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+          padding:20px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s; }
+  .card:hover { border-color:var(--accent); }
+  .card h3 { font-size:16.5px; font-weight:700; letter-spacing:-0.01em; }
+  .card .q { font-size:13.5px; color:var(--muted); min-height:2.6em; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font-size:11.5px; font-weight:600; padding:2px 9px; border-radius:999px;
+          background:var(--accent-soft); color:var(--accent-deep); font-variant-numeric:tabular-nums; }
+  .chip.dim { background:var(--bg); color:var(--muted); border:1px solid var(--line); }
+  .card .tbl { display:flex; align-items:center; gap:8px; margin-top:auto; padding-top:8px; border-top:1px dashed var(--line); }
+  .card .tbl code { font-family:var(--mono); font-size:11.5px; color:var(--faint); flex:1;
+                    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .play { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:24px; margin-bottom:56px; }
+  .play-grid { display:grid; grid-template-columns:250px 1fr; gap:24px; }
+  @media (max-width:760px){ .play-grid { grid-template-columns:1fr; } .hero h1 { font-size:27px; } }
+  .field { margin-bottom:14px; }
+  .field label { display:block; font-size:12px; font-weight:700; color:var(--muted);
+                 letter-spacing:.04em; margin-bottom:6px; }
+  .field input, .field select { width:100%; }
+  .quota { margin-top:18px; }
+  .quota .bar { height:6px; background:var(--bg); border-radius:999px; overflow:hidden; border:1px solid var(--line); }
+  .quota .fill { height:100%; width:0%; background:var(--accent); border-radius:999px; transition:width .3s; }
+  .quota .txt { display:flex; justify-content:space-between; font-size:12px; color:var(--muted);
+                margin-top:6px; font-variant-numeric:tabular-nums; }
+
+  .req { font-family:var(--mono); font-size:12.5px; background:#20261f; color:#dfe8e0; border-radius:10px;
+         padding:12px 14px; overflow-x:auto; white-space:pre; }
+  .req .m { color:#8fd4b8; }
+  .resp-head { display:flex; align-items:center; gap:10px; margin:16px 0 10px; }
+  .status { font-family:var(--mono); font-size:12.5px; font-weight:700; padding:2px 10px; border-radius:999px; display:none; }
+  .status.ok { background:var(--accent-soft); color:var(--accent-deep); display:inline-block; }
+  .status.err { background:var(--red-soft); color:var(--red-ink); display:inline-block; }
+  .resp-meta { font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:10px; }
+  table.data { border-collapse:collapse; width:100%; font-size:12.5px; font-variant-numeric:tabular-nums; }
+  table.data th { position:sticky; top:0; background:var(--bg); font-family:var(--mono); font-size:11px;
+                  color:var(--muted); font-weight:600; text-align:left; padding:8px 12px; white-space:nowrap;
+                  border-bottom:1px solid var(--line); }
+  table.data td { padding:7px 12px; border-bottom:1px solid var(--line); white-space:nowrap; color:var(--ink); }
+  table.data tr:last-child td { border-bottom:0; }
+  .raw-json { display:none; font-family:var(--mono); font-size:12px; background:var(--bg);
+              border:1px solid var(--line); border-radius:10px; padding:12px; overflow:auto; max-height:340px; }
+  .toggle-raw { background:none; border:none; color:var(--accent-deep); font-size:12.5px; padding:0;
+                cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  .empty { color:var(--faint); font-size:13.5px; padding:26px; text-align:center;
+           border:1px dashed var(--line); border-radius:10px; }
+
+  footer { border-top:1px solid var(--line); padding:26px 0 48px; color:var(--faint); font-size:12.5px; }
+  footer .wrap { display:flex; gap:18px; flex-wrap:wrap; }
 </style>
 </head>
 <body>
+
+<header>
+  <div class="wrap nav">
+    <span class="brand">ASK<em>:</em>SEOUL</span>
+    <span class="divider">|</span>
+    <span class="label">데이터 마켓플레이스</span>
+    <span class="spacer"></span>
+    <span class="pill local">프로토타입 · 로컬 전용</span>
+  </div>
+</header>
+
 <div class="wrap">
-  <h1>ASK Seoul 데이터 API</h1>
-  <p class="sub">서울 문화행사 gold 마트를 API로 제공합니다 — 키 발급 후 바로 호출 (프로토타입 · 로컬)</p>
-
-  <div class="card">
-    <h2>1. API 키 발급</h2>
-    <div class="row">
-      <input type="email" id="email" placeholder="이메일 (키 1개 / 재요청 시 재발급)" autocomplete="email">
-      <button id="issue">키 발급</button>
+  <div class="hero">
+    <h1>서울의 문화 데이터를<br><span class="ul">API 한 줄로</span> 받아 가세요</h1>
+    <p>행정동 단위 문화 활동, 행사 캘린더, 공연 박스오피스 — 매일 새벽 갱신되는 정제 마트를 키 발급 즉시 호출할 수 있습니다.</p>
+    <div class="issue-row">
+      <input type="email" id="email" placeholder="you@example.com" autocomplete="email" aria-label="이메일">
+      <button class="btn-primary" id="issueBtn">API 키 발급</button>
     </div>
-    <div class="key-box" id="keyBox">
-      <div>발급된 키: <code id="keyValue"></code></div>
-      <div class="warn">이 키는 지금 한 번만 표시됩니다. 서버에는 해시만 저장되어 다시 보여드릴 수 없습니다.</div>
+    <div class="key-reveal" id="keyReveal">
+      <div class="k"><code id="keyValue"></code><button class="btn-ghost btn-sm" id="copyKey">복사</button></div>
+      <div class="note" id="keyNote">이 키는 지금 한 번만 표시됩니다 — 서버에는 해시만 저장되어 다시 볼 수 없습니다.</div>
     </div>
-    <div class="err" id="issueErr"></div>
+    <div class="form-err" id="issueErr"></div>
   </div>
 
-  <div class="card">
-    <h2>2. 카탈로그</h2>
-    <table id="catalog"><thead><tr><th>product</th><th>질문</th><th>시간축</th><th class="num">행수</th></tr></thead><tbody></tbody></table>
-  </div>
+  <section id="catalog-sec">
+    <div class="sec-head"><h2>데이터 카탈로그</h2><span class="hint" id="catHint"></span></div>
+    <div class="grid" id="cards"></div>
+  </section>
 
-  <div class="card">
-    <h2>3. 호출해 보기</h2>
-    <div class="row">
-      <input type="text" id="tryKey" placeholder="발급받은 키 (ask_…)">
-      <input type="text" id="tryTable" placeholder="테이블 이름 (카탈로그의 name)">
-      <button id="tryBtn">호출</button>
-      <button id="meBtn" style="background:#5f5e5a">내 사용량</button>
+  <section id="play-sec">
+    <div class="sec-head"><h2>플레이그라운드</h2><span class="hint">발급받은 키로 바로 호출해 보세요</span></div>
+    <div class="play">
+      <div class="play-grid">
+        <div>
+          <div class="field"><label for="pKey">API 키</label><input type="text" id="pKey" placeholder="ask_…" autocomplete="off"></div>
+          <div class="field"><label for="pTable">데이터</label><select id="pTable"></select></div>
+          <div class="field"><label for="pLimit">행 수 (limit)</label><input type="number" id="pLimit" value="10" min="1" max="5000"></div>
+          <div class="field" id="rangeField" style="display:none">
+            <label>기간 (<span id="axisName"></span>)</label>
+            <input type="text" id="pFrom" placeholder="from · YYYY-MM-DD" style="margin-bottom:6px">
+            <input type="text" id="pTo" placeholder="to · YYYY-MM-DD">
+          </div>
+          <button class="btn-primary" id="runBtn" style="width:100%">호출</button>
+          <div class="quota">
+            <div class="bar"><div class="fill" id="quotaFill"></div></div>
+            <div class="txt"><span>오늘 사용량</span><span id="quotaTxt">— / —</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="req" id="reqPreview"><span class="m">GET</span> /api/data/&lt;table&gt;?limit=10</div>
+          <div class="resp-head">
+            <span class="status" id="respStatus"></span>
+            <span class="resp-meta" id="respMeta"></span>
+            <span style="flex:1"></span>
+            <button class="toggle-raw" id="toggleRaw" style="display:none">JSON 원문</button>
+          </div>
+          <div class="table-scroll" id="tableWrap" style="display:none"><table class="data" id="respTable"></table></div>
+          <pre class="raw-json" id="rawJson"></pre>
+          <div class="empty" id="respEmpty">키를 넣고 호출하면 응답이 여기 표시됩니다</div>
+        </div>
+      </div>
     </div>
-    <pre id="tryOut" style="margin-top:12px">curl -H "Authorization: Bearer ask_…" "http://localhost:8787/api/data/&lt;table&gt;?limit=5"</pre>
-  </div>
+  </section>
 </div>
+
+<footer>
+  <div class="wrap">
+    <span>ASK: SEOUL — ASAC-DE 레이크하우스 프로젝트</span>
+    <span>계약: Serving Contract v1.1</span>
+    <span>배포 전 로컬 검증판 (ASK-Seoul#58)</span>
+  </div>
+</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
 
+const DISPLAY = {
+  culture_activity_by_dong: { title: "행정동별 문화 활동", unit: "행정동 × 날짜" },
+  culture_calendar_density: { title: "구별 행사 캘린더 밀집도", unit: "자치구 × 날짜" },
+  culture_event_schedule:   { title: "문화행사 일정", unit: "행사 1건 = 1행" },
+  culture_event_crowd:      { title: "요일·시간대 혼잡 패턴", unit: "자치구 × 요일 × 시간" },
+  culture_boxoffice_daily:  { title: "공연 예매 박스오피스", unit: "일 × 순위" },
+  culture_dine_around:      { title: "행사 동네 외식 상권", unit: "행정동 1곳 = 1행" },
+  culture_booking_curve:    { title: "공연 예매 오픈 궤적", unit: "공연 1편 = 1행" },
+};
+const nf = new Intl.NumberFormat("ko-KR");
+let PRODUCTS = [];
+
 async function loadCatalog() {
   const res = await fetch("/api/catalog");
-  const body = await res.json();
-  const tbody = $("catalog").querySelector("tbody");
-  tbody.innerHTML = "";
-  for (const p of body.products || []) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = "<td><code>" + p.name + "</code><br><span class='pill'>" + (p.product_id || "-") + "</span></td>" +
-      "<td>" + (p.product_question || "<span class='muted'>—</span>") + "</td>" +
-      "<td>" + (p.time_axis || "<span class='muted'>—</span>") + "</td>" +
-      "<td class='num'>" + (p.row_count ?? "—").toLocaleString?.() + "</td>";
-    tbody.appendChild(tr);
+  PRODUCTS = (await res.json()).products || [];
+  $("catHint").textContent = PRODUCTS.length + "개 제품 · 매일 04:30 KST 갱신";
+  const cards = $("cards");
+  cards.innerHTML = "";
+  const sel = $("pTable");
+  sel.innerHTML = "";
+  for (const p of PRODUCTS) {
+    const d = DISPLAY[p.product_id] || { title: p.product_id, unit: "" };
+    const card = document.createElement("div");
+    card.className = "card";
+    card.innerHTML =
+      "<h3>" + d.title + "</h3>" +
+      "<div class='q'>" + (p.product_question || "") + "</div>" +
+      "<div class='chips'>" +
+        "<span class='chip'>" + nf.format(p.row_count || 0) + "행</span>" +
+        (p.time_axis ? "<span class='chip'>기간 조회 가능</span>" : "<span class='chip dim'>명부형</span>") +
+        "<span class='chip dim'>" + d.unit + "</span>" +
+      "</div>" +
+      "<div class='tbl'><code>" + p.name + "</code>" +
+      "<button class='btn-ghost btn-sm' data-try='" + p.name + "'>써보기</button></div>";
+    cards.appendChild(card);
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = d.title + " — " + p.name;
+    sel.appendChild(opt);
+  }
+  cards.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-try]");
+    if (!t) return;
+    $("pTable").value = t.dataset.try;
+    onTableChange();
+    document.getElementById("play-sec").scrollIntoView();
+  });
+  onTableChange();
+}
+
+function currentProduct() { return PRODUCTS.find((p) => p.name === $("pTable").value); }
+
+function onTableChange() {
+  const p = currentProduct();
+  if (!p) return;
+  $("rangeField").style.display = p.time_axis ? "block" : "none";
+  $("axisName").textContent = p.time_axis || "";
+  updatePreview();
+}
+
+function buildPath() {
+  const p = currentProduct();
+  if (!p) return "";
+  const q = new URLSearchParams();
+  q.set("limit", $("pLimit").value || "10");
+  if (p.time_axis && $("pFrom").value.trim()) q.set("from", $("pFrom").value.trim());
+  if (p.time_axis && $("pTo").value.trim()) q.set("to", $("pTo").value.trim());
+  return "/api/data/" + p.name + "?" + q.toString();
+}
+
+function updatePreview() {
+  const key = $("pKey").value.trim();
+  $("reqPreview").innerHTML =
+    "<span class='m'>curl</span> -H \"Authorization: Bearer " + (key ? key.slice(0, 8) + "…" : "&lt;API_KEY&gt;") + "\" \\\n" +
+    "  \"http://localhost:8787" + buildPath() + "\"";
+}
+
+async function refreshQuota() {
+  const key = $("pKey").value.trim();
+  if (!key) return;
+  try {
+    const res = await fetch("/api/me", { headers: { authorization: "Bearer " + key } });
+    if (!res.ok) return;
+    const b = await res.json();
+    $("quotaFill").style.width = Math.min(100, (b.used_today / b.daily_quota) * 100) + "%";
+    $("quotaTxt").textContent = nf.format(b.used_today) + " / " + nf.format(b.daily_quota);
+  } catch {}
+}
+
+function renderRows(rows) {
+  const tbl = $("respTable");
+  tbl.innerHTML = "";
+  if (!rows.length) { $("tableWrap").style.display = "none"; return; }
+  const cols = Object.keys(rows[0]);
+  tbl.innerHTML =
+    "<thead><tr>" + cols.map((c) => "<th>" + c + "</th>").join("") + "</tr></thead>" +
+    "<tbody>" + rows.slice(0, 15).map((r) =>
+      "<tr>" + cols.map((c) => "<td>" + (r[c] ?? "<span style='color:var(--faint)'>∅</span>") + "</td>").join("") + "</tr>"
+    ).join("") + "</tbody>";
+  $("tableWrap").style.display = "block";
+}
+
+async function run() {
+  const key = $("pKey").value.trim();
+  const path = buildPath();
+  if (!key) { showStatus(401, "키를 먼저 발급/입력하세요"); return; }
+  $("runBtn").disabled = true;
+  try {
+    const res = await fetch(path, { headers: { authorization: "Bearer " + key } });
+    const body = await res.json();
+    $("rawJson").textContent = JSON.stringify(body, null, 2);
+    $("toggleRaw").style.display = "inline";
+    $("respEmpty").style.display = "none";
+    if (res.ok) {
+      showStatus(res.status, body.row_count + "행 반환 · limit " + body.limit + (body.time_axis ? " · 시간축 " + body.time_axis : ""));
+      renderRows(body.rows || []);
+    } else {
+      showStatus(res.status, body.detail || body.title);
+      $("tableWrap").style.display = "none";
+      $("rawJson").style.display = "block";
+    }
+  } catch (e) {
+    showStatus("ERR", String(e));
+  } finally {
+    $("runBtn").disabled = false;
+    refreshQuota();
   }
 }
 
-$("issue").addEventListener("click", async () => {
+function showStatus(code, msg) {
+  const s = $("respStatus");
+  s.textContent = "HTTP " + code;
+  s.className = "status " + (String(code)[0] === "2" ? "ok" : "err");
+  $("respMeta").textContent = msg || "";
+}
+
+$("issueBtn").addEventListener("click", async () => {
   $("issueErr").textContent = "";
   const res = await fetch("/api/keys", {
     method: "POST",
@@ -93,22 +333,30 @@ $("issue").addEventListener("click", async () => {
   });
   const body = await res.json();
   if (!res.ok) { $("issueErr").textContent = body.detail || body.title; return; }
-  $("keyValue").textContent = body.key + (body.rotated ? "  (기존 키는 폐기됨)" : "");
-  $("keyBox").style.display = "block";
-  $("tryKey").value = body.key;
+  $("keyValue").textContent = body.key;
+  $("keyReveal").style.display = "block";
+  if (body.rotated) $("keyNote").textContent = "기존 키는 방금 폐기되었습니다. 새 키는 지금 한 번만 표시됩니다.";
+  $("pKey").value = body.key;
+  updatePreview();
+  refreshQuota();
 });
 
-async function callApi(path) {
-  const res = await fetch(path, { headers: { authorization: "Bearer " + $("tryKey").value.trim() } });
-  const body = await res.json();
-  $("tryOut").textContent = "HTTP " + res.status + "\n" + JSON.stringify(body, null, 2).slice(0, 4000);
-}
-
-$("tryBtn").addEventListener("click", () => {
-  const t = $("tryTable").value.trim();
-  if (t) callApi("/api/data/" + encodeURIComponent(t) + "?limit=5");
+$("copyKey").addEventListener("click", async () => {
+  await navigator.clipboard.writeText($("keyValue").textContent);
+  $("copyKey").textContent = "복사됨";
+  setTimeout(() => ($("copyKey").textContent = "복사"), 1500);
 });
-$("meBtn").addEventListener("click", () => callApi("/api/me"));
+
+$("toggleRaw").addEventListener("click", () => {
+  const r = $("rawJson");
+  const show = r.style.display !== "block";
+  r.style.display = show ? "block" : "none";
+  $("tableWrap").style.display = show ? "none" : "block";
+});
+
+$("runBtn").addEventListener("click", run);
+$("pTable").addEventListener("change", onTableChange);
+for (const id of ["pKey", "pLimit", "pFrom", "pTo"]) $(id).addEventListener("input", updatePreview);
 
 loadCatalog();
 </script>
