@@ -151,60 +151,6 @@ async function handlePreview(env, table, trace = {}) {
   return json({ table, preview: true, row_count: results.length, rows: results });
 }
 
-// 공개 쇼케이스 — 랜딩이 데이터를 "설명"하는 대신 "보여주게" 하는 무인증·무과금 엔드포인트.
-// 고정 소량 집계 + 엣지 캐시라 쿼터를 태우지 않는다. 실패한 조각은 null 로 빠지고 나머지는 살린다.
-const SHOWCASE_EVENTS = 6;
-const SHOWCASE_CHART = 5;
-
-const tryQuery = async (fn) => { try { return await fn(); } catch { return null; } };
-
-async function handleShowcase(env) {
-  // 진행 중 행사. 없으면(로컬 픽스처처럼 과거분만 실린 경우) 최신순 폴백 — live 플래그로 UI 가 문구를 바꾼다
-  const cols = "title, venue_name, gu, category, event_start_date, event_end_date";
-  let live = true;
-  let events = await tryQuery(async () => (await env.DB.prepare(
-    `SELECT ${cols} FROM gold_culture_event_schedule WHERE event_end_date >= date('now') ` +
-    "ORDER BY event_start_date LIMIT ?"
-  ).bind(SHOWCASE_EVENTS).all()).results);
-  if (events && !events.length) {
-    live = false;
-    events = await tryQuery(async () => (await env.DB.prepare(
-      `SELECT ${cols} FROM gold_culture_event_schedule ORDER BY event_start_date DESC LIMIT ?`
-    ).bind(SHOWCASE_EVENTS).all()).results);
-  }
-
-  const chart = await tryQuery(async () => {
-    const snap = await env.DB.prepare(
-      "SELECT MAX(snapshot_date) AS d FROM gold_culture_boxoffice_daily"
-    ).first();
-    if (!snap || !snap.d) return null;
-    const { results } = await env.DB.prepare(
-      "SELECT rank_no, performance_name, genre, venue_name, gu, rank_delta_3d, is_new_entry " +
-      "FROM gold_culture_boxoffice_daily WHERE snapshot_date = ? ORDER BY rank_no LIMIT ?"
-    ).bind(snap.d, SHOWCASE_CHART).all();
-    return { snapshot_date: snap.d, rows: results };
-  });
-
-  const density = await tryQuery(async () => {
-    const { results } = await env.DB.prepare(
-      "SELECT event_date, SUM(total_events) AS events, COUNT(DISTINCT gu_code) AS gus " +
-      "FROM gold_culture_calendar_density GROUP BY event_date ORDER BY event_date"
-    ).all();
-    return results;
-  });
-
-  return new Response(
-    JSON.stringify({ events: { live, rows: events || [] }, chart, density }),
-    {
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        "access-control-allow-origin": "*",
-        "cache-control": "public, max-age=300",
-      },
-    }
-  );
-}
-
 async function handleData(env, table, params, keyRow, trace = {}) {
   trace.table = table;
   if (!/^[a-z0-9_]+$/.test(table))
@@ -297,7 +243,6 @@ async function route(request, env, url, trace) {
   }
   if (request.method !== "GET") return problem(405, "method not allowed", "조회 전용 API");
   if (path === "/api/catalog") { trace.route = "catalog"; return handleCatalog(env); }
-  if (path === "/api/showcase") { trace.route = "showcase"; return handleShowcase(env); }
 
   const previewMatch = path.match(/^\/api\/preview\/([^/]+)$/);
   if (previewMatch) {

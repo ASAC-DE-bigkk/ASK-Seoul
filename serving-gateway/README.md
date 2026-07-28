@@ -29,7 +29,6 @@ npm run usage        # 사용 리포트 (아래 '사용 계측' 참고)
 | `GET /api/catalog` | — | 서빙 제품 목록(계약 v1.1 `_catalog` 15컬럼) |
 | `GET /api/data/<table>` | Bearer | 조회. `<col>=<val>` 등가 필터 · `from`/`to`(time_axis) · `limit`(≤5000). 유효 요청만 쿼터 소모(400/404 무과금), 초과 시 429 |
 | `GET /api/me` | Bearer | 오늘 사용량/쿼터 (쿼터 무소모) |
-| `GET /api/showcase` | — | 랜딩용 공개 쇼케이스 — 진행 중 행사·예매 상위·날짜별 행사 수. 무과금·5분 캐시. 진행 중 행사가 없으면 최신순 폴백 + `events.live:false` |
 
 ## 사용 계측 — 무엇이 실제로 쓰이나
 

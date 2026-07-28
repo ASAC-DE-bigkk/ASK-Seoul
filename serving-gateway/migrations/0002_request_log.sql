@@ -9,7 +9,7 @@
 
 CREATE TABLE IF NOT EXISTS _request_log (
   ts         TEXT    NOT NULL,  -- ISO8601 UTC
-  route      TEXT    NOT NULL,  -- catalog | preview | data | me | keys | showcase
+  route      TEXT    NOT NULL,  -- catalog | preview | data | me | keys
   table_name TEXT,              -- 조회 대상 (해당 없으면 NULL)
   status     INTEGER NOT NULL,
   key_hash   TEXT,              -- 인증 요청만. 익명은 NULL
