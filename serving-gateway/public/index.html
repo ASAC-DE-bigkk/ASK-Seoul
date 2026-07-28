@@ -81,8 +81,7 @@
     background-size:56px 56px;
     -webkit-mask-image:radial-gradient(1000px 420px at 22% 30%, #000 20%, transparent 78%);
             mask-image:radial-gradient(1000px 420px at 22% 30%, #000 20%, transparent 78%); }
-  .hero-in { position:relative; display:grid; grid-template-columns:1.05fr .95fr; gap:44px; align-items:center; }
-  @media (max-width:940px){ .hero-in { grid-template-columns:1fr; gap:32px; } }
+  .hero-in { position:relative; max-width:660px; }
 
   .hero h1 { font-size:clamp(28px, 4.2vw, 42px); font-weight:800; letter-spacing:-.025em;
              line-height:1.22; text-wrap:balance; margin-top:12px; }
@@ -108,27 +107,6 @@
            border:1px solid var(--deck-line); border-radius:999px; }
   .hot a:hover { border-color:var(--accent); color:#fff; }
 
-  /* 라이브 패널 — 실제 행사가 뜨는 곳 */
-  .live { background:var(--deck-2); border:1px solid var(--deck-line); border-radius:10px;
-          box-shadow:0 18px 40px rgba(0,0,0,.32); overflow:hidden; }
-  .live-head { display:flex; align-items:center; gap:8px; padding:11px 14px;
-               border-bottom:1px solid var(--deck-line); }
-  .live-head .dot { width:6px; height:6px; border-radius:50%; background:#12b76a; flex:none;
-                    box-shadow:0 0 0 0 rgba(18,183,106,.6); animation:pulse 2.4s infinite; }
-  @keyframes pulse { 70% { box-shadow:0 0 0 7px rgba(18,183,106,0); } 100% { box-shadow:0 0 0 0 rgba(18,183,106,0); } }
-  .live-head .src { margin-left:auto; font-family:var(--mono); font-size:9.5px; color:var(--deck-dim); }
-  .ev { display:block; padding:11px 14px; border-bottom:1px solid var(--deck-line); }
-  .ev:last-child { border-bottom:0; }
-  .ev:hover { background:rgba(255,255,255,.035); }
-  .ev .t { font-size:13px; font-weight:600; color:#fff; line-height:1.4;
-           display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
-  .ev .m { display:flex; gap:8px; align-items:center; margin-top:3px; font-size:11.5px; color:var(--deck-dim); }
-  .ev .m .gu { color:#84adff; font-weight:600; }
-  .ev .m .d { margin-left:auto; font-family:var(--mono); font-size:10.5px; }
-  .live-foot { padding:9px 14px; border-top:1px solid var(--deck-line); display:flex; align-items:center; }
-  .live-foot a { font-size:11.5px; font-weight:600; color:#84adff; margin-left:auto; }
-  .live-foot a:hover { text-decoration:underline; text-underline-offset:3px; }
-
   /* ─── 계기 스트립 (통계) — 카드 4장 대신 구획된 한 줄 ─── */
   .strip { background:var(--panel); border:1px solid var(--line); border-radius:10px;
            box-shadow:var(--shadow-sm); margin-top:-26px; position:relative; z-index:3;
@@ -152,47 +130,6 @@
   .sec-head .hint { font-size:12px; color:var(--faint); }
   .sec-head .more { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--accent-deep); }
   .sec-head .more:hover { text-decoration:underline; text-underline-offset:3px; }
-
-  /* 라이브 데이터: 캘린더 리본 + 박스오피스 */
-  .live-grid { display:grid; grid-template-columns:1.25fr .75fr; gap:16px; }
-  @media (max-width:940px){ .live-grid { grid-template-columns:1fr; } }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px;
-           box-shadow:var(--shadow-xs); overflow:hidden; }
-  .panel-head { display:flex; align-items:baseline; gap:10px; padding:14px 18px 0; }
-  .panel-head .tt { font-size:13.5px; font-weight:700; }
-  .panel-head .qq { font-size:11.5px; color:var(--faint); }
-  .panel-head .tbl { margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--faint); }
-  .panel-body { padding:14px 18px 18px; }
-
-  /* 캘린더 리본 — 날짜별 행사 수 */
-  .ribbon { display:flex; align-items:flex-end; gap:2px; height:104px; margin-top:10px; }
-  .ribbon .b { flex:1; min-width:2px; background:var(--accent-soft); border-radius:2px 2px 0 0;
-               position:relative; transition:background .12s; }
-  .ribbon .b > i { display:block; width:100%; background:var(--accent); border-radius:2px 2px 0 0; }
-  .ribbon .b:hover > i { background:var(--accent-deep); }
-  .ribbon-axis { display:flex; justify-content:space-between; margin-top:7px;
-                 font-family:var(--mono); font-size:10px; color:var(--faint); }
-  .ribbon-legend { display:flex; gap:14px; margin-top:12px; padding-top:12px;
-                   border-top:1px solid var(--line); font-size:11.5px; color:var(--muted); }
-  .ribbon-legend b { color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums; }
-
-  /* 박스오피스 순위 */
-  .rank { list-style:none; padding:0; margin-top:8px; }
-  .rank li { display:flex; align-items:center; gap:11px; padding:9px 0;
-             border-bottom:1px solid var(--line); }
-  .rank li:last-child { border-bottom:0; }
-  .rank .no { width:22px; flex:none; font-family:var(--mono); font-size:12px; font-weight:700;
-              color:var(--accent-deep); text-align:right; font-variant-numeric:tabular-nums; }
-  .rank .info { min-width:0; flex:1; }
-  .rank .nm { font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden;
-              text-overflow:ellipsis; }
-  .rank .vn { font-size:11px; color:var(--faint); white-space:nowrap; overflow:hidden;
-              text-overflow:ellipsis; }
-  .rank .mv { flex:none; font-family:var(--mono); font-size:11px; font-weight:700;
-              font-variant-numeric:tabular-nums; }
-  .mv.up { color:var(--green-ink); } .mv.dn { color:var(--red-ink); } .mv.fl { color:var(--faint); }
-  .mv.new { color:var(--accent-deep); background:var(--accent-soft); border-radius:4px; padding:1px 6px;
-            font-size:10px; letter-spacing:.04em; }
 
   /* product cards */
   .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
@@ -235,14 +172,10 @@
                background:linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
                animation:shimmer 1.3s infinite; }
   @keyframes shimmer { to { transform:translateX(100%); } }
-  .sk-deck { background:rgba(255,255,255,.06); }
-  .sk-deck::after { background:linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent); }
   .sk-card { height:140px; background:var(--panel); border:1px solid var(--line); border-radius:10px; }
-  .sk-ev { height:46px; margin:0; border-bottom:1px solid var(--deck-line); }
   .state { grid-column:1/-1; padding:22px; text-align:center; font-size:12.5px; color:var(--muted);
            border:1px dashed var(--line-strong); border-radius:10px; background:var(--panel); }
   .state a { color:var(--accent-deep); font-weight:600; text-decoration:underline; text-underline-offset:3px; }
-  .deck .state { border-color:var(--deck-line); background:transparent; color:var(--deck-dim); }
 
   /* how it works */
   .how { display:grid; grid-template-columns:1fr 1.15fr; gap:24px; align-items:start; }
@@ -317,8 +250,8 @@
 </nav>
 
 <header class="deck hero">
-  <div class="wrap hero-in">
-    <div>
+  <div class="wrap">
+    <div class="hero-in">
       <div class="lab">Seoul Culture · Data API</div>
       <h1>서울에서 지금 무슨 일이 일어나는지,<br><em>API 한 줄로</em></h1>
       <p class="sub">공공 원천 네 곳을 매일 새벽 수집·정제해 <b>바로 조인할 수 있는 형태</b>로 제공합니다.
@@ -337,22 +270,6 @@
         <a href="/catalog?q=외식">동네 상권</a>
       </div>
     </div>
-
-    <aside class="live" aria-label="실시간 데이터 미리보기">
-      <div class="live-head">
-        <span class="dot" aria-hidden="true"></span>
-        <span class="lab" id="liveTitle">지금 서울에서</span>
-        <span class="src">gold_culture_event_schedule</span>
-      </div>
-      <div id="liveList">
-        <div class="sk sk-deck sk-ev"></div><div class="sk sk-deck sk-ev"></div>
-        <div class="sk sk-deck sk-ev"></div><div class="sk sk-deck sk-ev"></div>
-      </div>
-      <div class="live-foot">
-        <span class="lab">키 없이 조회한 실제 응답</span>
-        <a href="/catalog?q=gold_culture_event_schedule">이 데이터 열기 →</a>
-      </div>
-    </aside>
   </div>
 </header>
 
@@ -370,31 +287,6 @@
 </div>
 
 <main class="wrap">
-
-  <section>
-    <div class="sec-head"><h2>라이브 데이터</h2><span class="hint">아래는 모두 지금 이 서버가 응답한 실제 값입니다</span></div>
-    <div class="live-grid">
-      <div class="panel">
-        <div class="panel-head">
-          <span class="tt">서울 문화 캘린더</span>
-          <span class="qq">어느 날짜에 행사가 몰리나?</span>
-          <span class="tbl">gold_culture_calendar_density</span>
-        </div>
-        <div class="panel-body" id="ribbonWrap">
-          <div class="sk" style="height:104px"></div>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">
-          <span class="tt">예매 상위</span>
-          <span class="tbl" id="chartDate"></span>
-        </div>
-        <div class="panel-body" id="chartWrap">
-          <div class="sk" style="height:104px"></div>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <section>
     <div class="sec-head"><h2>데이터 제품</h2><span class="hint">질문에 바로 답하는 형태로 정제됨</span>
@@ -416,7 +308,7 @@
       <div>
         <div class="hstep"><div class="num2">1</div><div>
           <div class="tt">미리보기로 실물 확인</div>
-          <div class="dd">카탈로그에서 아무 제품이나 열면 <b>키 없이 샘플 5행</b>을 바로 볼 수 있습니다 — 위 라이브 패널이 그 응답입니다.</div>
+          <div class="dd">카탈로그에서 아무 제품이나 열면 <b>키 없이 샘플 5행</b>을 바로 볼 수 있습니다.</div>
         </div></div>
         <div class="hstep"><div class="num2">2</div><div>
           <div class="tt">API 키 발급</div>
@@ -494,7 +386,6 @@ const DOMAINS = [
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const domainOf = (p) => (p.product_id || p.name || "").replace(/^gold_/, "").split("_")[0];
 const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
-const md = (d) => (d || "").slice(5).replace("-", ".");
 
 // 신선도는 카탈로그가 내려주는 exported_at 실측 — 고정 문구 금지(파이프라인 시각과 어긋난다)
 function relTime(iso) {
@@ -526,9 +417,9 @@ function setStat(id, text) {
   el.classList.remove("sk");
   el.innerHTML = text;
 }
-function failState(id, msg, dark) {
+function failState(id, msg) {
   $(id).innerHTML = "<div class='state'>" + msg +
-    (dark ? "" : " — <a href='/catalog'>카탈로그에서 직접 보기</a>") + "</div>";
+    " — <a href='/catalog'>카탈로그에서 직접 보기</a></div>";
 }
 
 // ── 카탈로그: 통계 · 제품 카드 · 도메인
@@ -581,71 +472,7 @@ async function bootCatalog() {
   }).join("");
 }
 
-// ── 쇼케이스: 실제 행사 · 캘린더 리본 · 예매 상위
-async function bootShowcase() {
-  let s;
-  try {
-    const res = await fetch("/api/showcase");
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    s = await res.json();
-  } catch {
-    failState("liveList", "데이터를 불러오지 못했습니다", true);
-    failState("ribbonWrap", "불러오지 못했습니다");
-    failState("chartWrap", "불러오지 못했습니다");
-    return;
-  }
-
-  // 진행 중 행사가 없으면 서버가 최신순으로 폴백한다 — 제목을 사실대로 바꾼다
-  const ev = (s.events && s.events.rows) || [];
-  $("liveTitle").textContent = s.events && s.events.live ? "지금 서울에서" : "최근 등록된 행사";
-  $("liveList").innerHTML = ev.length
-    ? ev.slice(0, 4).map((e) =>
-        "<a class='ev' href='/catalog?q=gold_culture_event_schedule'>" +
-        "<span class='t'>" + esc(e.title) + "</span>" +
-        "<span class='m'><span class='gu'>" + esc(e.gu || "서울") + "</span>" +
-        "<span>" + esc(e.venue_name || e.category || "") + "</span>" +
-        "<span class='d'>" + md(e.event_start_date) +
-        (e.event_end_date && e.event_end_date !== e.event_start_date ? "–" + md(e.event_end_date) : "") +
-        "</span></span></a>").join("")
-    : "<div class='state'>표시할 행사가 없습니다</div>";
-
-  // 캘린더 리본 — 날짜별 행사 수
-  const dens = s.density || [];
-  if (dens.length) {
-    const max = Math.max(...dens.map((d) => d.events));
-    const total = dens.reduce((a, d) => a + d.events, 0);
-    const peak = dens.reduce((a, d) => (d.events > a.events ? d : a), dens[0]);
-    $("ribbonWrap").innerHTML =
-      "<div class='ribbon'>" + dens.map((d) =>
-        "<div class='b' title='" + esc(d.event_date) + " · " + d.events + "건'>" +
-        "<i style='height:" + Math.max(3, Math.round((d.events / max) * 104)) + "px'></i></div>").join("") + "</div>" +
-      "<div class='ribbon-axis'><span>" + esc(dens[0].event_date) + "</span>" +
-      "<span>" + esc(dens[dens.length - 1].event_date) + "</span></div>" +
-      "<div class='ribbon-legend'><span>기간 <b class='num'>" + dens.length + "</b>일</span>" +
-      "<span>행사 <b class='num'>" + nf.format(total) + "</b>건</span>" +
-      "<span>최다 <b class='num'>" + esc(peak.event_date) + "</b> · " + peak.events + "건</span></div>";
-  } else failState("ribbonWrap", "캘린더 데이터가 없습니다");
-
-  // 예매 상위 — 순위 변동까지
-  const ch = s.chart;
-  if (ch && ch.rows && ch.rows.length) {
-    $("chartDate").textContent = ch.snapshot_date;
-    $("chartWrap").innerHTML = "<ol class='rank'>" + ch.rows.map((r) => {
-      const d = r.rank_delta_3d;
-      const mv = r.is_new_entry ? "<span class='mv new'>NEW</span>"
-        : d > 0 ? "<span class='mv up'>▲" + d + "</span>"
-        : d < 0 ? "<span class='mv dn'>▼" + Math.abs(d) + "</span>"
-        : "<span class='mv fl'>—</span>";
-      return "<li><span class='no'>" + r.rank_no + "</span>" +
-        "<span class='info'><span class='nm'>" + esc(r.performance_name) + "</span>" +
-        "<span class='vn'>" + esc([r.genre, r.venue_name].filter(Boolean).join(" · ")) + "</span></span>" +
-        mv + "</li>";
-    }).join("") + "</ol>";
-  } else failState("chartWrap", "예매 데이터가 없습니다");
-}
-
 bootCatalog();
-bootShowcase();
 </script>
 </body>
 </html>
