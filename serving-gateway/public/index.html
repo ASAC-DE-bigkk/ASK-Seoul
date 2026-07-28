@@ -32,15 +32,20 @@
   }
   * { box-sizing:border-box; margin:0; }
   html { scroll-behavior:smooth; }
-  body { font-family:'Pretendard Variable',Pretendard,system-ui,-apple-system,'Noto Sans KR',sans-serif;
-         background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6; word-break:keep-all;
-         -webkit-font-smoothing:antialiased; }
+  /* 서체 — 실측(2026-07-28, 이 개발 PC): 'Pretendard Variable' 미설치, Pretendard 설치됨.
+     대부분의 방문자 PC 에는 Pretendard 가 없어 Windows=맑은 고딕 / macOS=Apple SD Gothic Neo 로
+     떨어진다. system-ui(Segoe UI)에는 한글이 없어 글리프 단위 폴백이 일어나므로, 한글 폴백을
+     운에 맡기지 않고 직접 지정한다. 웹폰트는 쓰지 않는다 — 한글 폰트는 무거워 첫 화면을 늦춘다 */
+  body { font-family:Pretendard,'Pretendard Variable','Apple SD Gothic Neo','Malgun Gothic',
+                     system-ui,-apple-system,'Noto Sans KR',sans-serif;
+         background:var(--bg); color:var(--ink); font-size:15px; line-height:1.7; word-break:keep-all;
+         -webkit-font-smoothing:antialiased; text-size-adjust:100%; }
   a { color:inherit; text-decoration:none; }
   .wrap { max-width:1140px; margin:0 auto; padding:0 24px; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
   .deck :focus-visible, .nav :focus-visible { outline-color:#5fd6c6; }
   /* 데이터를 가리키는 미세 라벨 — 이 페이지의 서체 규칙 */
-  .lab { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.12em;
+  .lab { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em;
          text-transform:uppercase; color:var(--faint); }
   .deck .lab { color:var(--deck-dim); }
   .num { font-variant-numeric:tabular-nums; }
@@ -93,8 +98,8 @@
   .hero h1 { font-size:clamp(34px, 5.6vw, 62px); font-weight:800; letter-spacing:-.038em;
              line-height:1.06; text-wrap:balance; margin-top:18px; }
   .hero h1 .n { font-variant-numeric:tabular-nums; color:#5fd6c6; }
-  .hero h1 .l2 { display:block; color:var(--deck-ink); font-weight:300; letter-spacing:-.03em; }
-  .hero .sub { font-size:15.5px; color:var(--deck-ink); margin-top:20px; max-width:470px; }
+  .hero h1 .l2 { display:block; color:var(--deck-ink); font-weight:400; letter-spacing:-.03em; }
+  .hero .sub { font-size:16.5px; color:var(--deck-ink); margin-top:20px; max-width:470px; }
   .hero .sub b { color:#fff; font-weight:600; }
   /* 격자가 무엇인지 밝히는 각주 — 데이터인 척하지 않는다 */
   .hero .fieldnote { position:absolute; right:0; bottom:-4px; z-index:2; text-align:right;
@@ -115,7 +120,7 @@
                         border:0; border-radius:8px; padding:0 20px; cursor:pointer; }
   .search-hero button:hover { background:var(--accent-deep); }
   .hot { display:flex; gap:6px; flex-wrap:wrap; margin-top:13px; align-items:center; }
-  .hot a { font-size:11.5px; font-weight:500; color:var(--deck-ink); padding:3px 10px;
+  .hot a { font-size:12px; font-weight:500; color:var(--deck-ink); padding:3px 10px;
            border:1px solid var(--deck-line); border-radius:999px; }
   .hot a:hover { border-color:var(--accent); color:#fff; }
 
@@ -125,10 +130,10 @@
            display:grid; grid-template-columns:repeat(4,1fr); }
   .strip .cell { padding:15px 20px; border-left:1px solid var(--line); }
   .strip .cell:first-child { border-left:0; }
-  .strip .v { font-size:21px; font-weight:800; letter-spacing:-.02em; margin-top:5px;
+  .strip .v { font-size:22px; font-weight:800; letter-spacing:-.02em; margin-top:5px;
               font-variant-numeric:tabular-nums; }
   .strip .v .u { font-size:12px; font-weight:600; color:var(--muted); }
-  .strip .k { font-size:11px; color:var(--muted); margin-top:1px; }
+  .strip .k { font-size:11.5px; color:var(--muted); margin-top:1px; }
   @media (max-width:820px){
     .strip { grid-template-columns:repeat(2,1fr); }
     .strip .cell:nth-child(3) { border-left:0; }
@@ -139,8 +144,8 @@
   section { padding:54px 0 0; }
   .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
   .sec-head h2 { font-size:19px; font-weight:700; letter-spacing:-.015em; }
-  .sec-head .hint { font-size:12px; color:var(--faint); }
-  .sec-head .more { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--accent-deep); }
+  .sec-head .hint { font-size:12.5px; color:var(--faint); }
+  .sec-head .more { margin-left:auto; font-size:13px; font-weight:600; color:var(--accent-deep); }
   .sec-head .more:hover { text-decoration:underline; text-underline-offset:3px; }
 
   /* product cards */
@@ -158,8 +163,8 @@
                  color:var(--accent-deep); border:1px solid var(--accent-line); white-space:nowrap; }
   .card .badge.dim { background:var(--panel); color:var(--muted); border-color:var(--line-strong);
                      font-family:inherit; }
-  .card .q { font-size:12.5px; color:var(--muted); flex:1; }
-  .card .meta { display:flex; gap:12px; font-size:11.5px; color:var(--faint);
+  .card .q { font-size:13.5px; color:var(--muted); flex:1; }
+  .card .meta { display:flex; gap:12px; font-size:12px; color:var(--faint);
                 font-variant-numeric:tabular-nums; border-top:1px solid var(--line); padding-top:9px; }
   .card .meta b { color:var(--ink); font-weight:600; }
   .card .meta .free { margin-left:auto; color:var(--green-ink); font-weight:600; }
@@ -171,10 +176,10 @@
              overflow:hidden; box-shadow:var(--shadow-xs); }
   .dom { padding:13px 16px; background:var(--panel); display:flex; flex-direction:column; gap:2px; }
   a.dom:hover { background:#f2f6f4; }
-  .dom .t { font-weight:700; font-size:13px; display:flex; align-items:center; gap:7px; }
+  .dom .t { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:7px; }
   .dom .t i { width:6px; height:6px; border-radius:50%; background:#2aa79a; flex:none; }
   .dom.soon .t { color:var(--muted); } .dom.soon .t i { background:var(--line-strong); }
-  .dom .d { font-size:11px; color:var(--faint); }
+  .dom .d { font-size:11.5px; color:var(--faint); }
   .dom .n { font-family:var(--mono); font-size:10px; font-weight:600; color:var(--accent-deep); margin-top:4px;
             display:flex; align-items:baseline; gap:7px; }
   /* 공간 단위 — 도메인마다 다르다는 사실이 카드 안에서 바로 읽혀야 한다 */
@@ -202,7 +207,7 @@
                  color:var(--accent-deep); font-weight:800; font-size:12px; display:flex;
                  align-items:center; justify-content:center; font-family:var(--mono); }
   .hstep .tt { font-weight:700; font-size:14px; }
-  .hstep .dd { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .hstep .dd { font-size:13px; color:var(--muted); margin-top:2px; }
   .hstep .dd code { font-family:var(--mono); font-size:11px; background:var(--bg);
                     border:1px solid var(--line); border-radius:4px; padding:1px 5px; }
   /* 데모 — 질문에서 응답까지를 3박자로 보여준다. 화면의 명령이 실제로 호출되는 것과 같다 */
@@ -216,8 +221,8 @@
                      background:#294a45; cursor:pointer; transition:background .15s; }
   .demo .qs button[aria-selected="true"] { background:#5fd6c6; }
   .demo .body { padding:14px 16px 16px; }
-  .demo .q { font-size:13px; font-weight:600; color:#fff; line-height:1.45; }
-  .demo .cmd { font-family:var(--mono); font-size:11.5px; line-height:1.6; color:#e4e9f1;
+  .demo .q { font-size:14px; font-weight:600; color:#fff; line-height:1.45; }
+  .demo .cmd { font-family:var(--mono); font-size:12px; line-height:1.6; color:#e4e9f1;
                margin-top:9px; word-break:break-all; min-height:2.2em; }
   .demo .cmd .g { color:#7fd6a8; font-weight:700; } .demo .cmd .b { color:#5fd6c6; }
   .demo .caret { display:inline-block; width:7px; height:12px; background:#5fd6c6;
@@ -225,7 +230,7 @@
   @keyframes blink { 50% { opacity:0; } }
   /* 좁은 화면에서 표가 본문을 밀지 않게 — 가로 스크롤은 표 안에서만 */
   .demo .out { overflow-x:auto; }
-  .demo table { width:100%; border-collapse:collapse; margin-top:12px; font-size:11.5px; }
+  .demo table { width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px; }
   .demo th { text-align:left; font-family:var(--mono); font-size:9.5px; font-weight:600;
              letter-spacing:.06em; text-transform:uppercase; color:var(--deck-dim);
              padding:0 12px 6px 0; white-space:nowrap; }
@@ -235,7 +240,7 @@
   .demo td.k { color:#fff; font-weight:600; }
   .demo tr.in td { animation:rowin .3s ease both; }
   @keyframes rowin { from { opacity:0; transform:translateY(5px); } }
-  .demo .fo { margin-top:11px; font-size:11px; color:var(--deck-dim); line-height:1.5; }
+  .demo .fo { margin-top:11px; font-size:12px; color:var(--deck-dim); line-height:1.5; }
   .demo .fo b { color:#5fd6c6; font-weight:600; }
   .demo .fo code { font-family:var(--mono); font-size:10.5px; }
 
@@ -250,7 +255,7 @@
             mask-image:radial-gradient(520px 200px at 88% 20%, #000, transparent 72%); }
   .cta > * { position:relative; }
   .cta h3 { color:#fff; font-size:19px; font-weight:800; letter-spacing:-.015em; }
-  .cta p { color:var(--deck-ink); font-size:13px; margin-top:4px; }
+  .cta p { color:var(--deck-ink); font-size:13.5px; margin-top:4px; }
   .cta .btns { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
   .btn-p, .btn-g { display:inline-flex; align-items:center; font-size:13.5px; font-weight:600;
                    border-radius:8px; padding:10px 18px; }
@@ -259,7 +264,7 @@
   .btn-g:hover { border-color:#fff; }
 
   footer { margin-top:54px; border-top:1px solid var(--line); background:var(--panel); }
-  .foot-in { display:flex; gap:22px; flex-wrap:wrap; padding:22px 0; font-size:11.5px; color:var(--faint); }
+  .foot-in { display:flex; gap:22px; flex-wrap:wrap; padding:22px 0; font-size:12px; color:var(--faint); }
   .foot-in b { color:var(--muted); font-weight:600; }
   .foot-in code { font-family:var(--mono); font-size:10.5px; }
   .foot-in .r { margin-left:auto; }
