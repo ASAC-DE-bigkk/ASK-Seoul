@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>데이터 카탈로그 — ASK: SEOUL 데이터 플랫폼</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23155eef'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EAS%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f6f68'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EAS%3C/text%3E%3C/svg%3E">
 <style>
   :root {
-    --bg:#f7f8fa; --panel:#ffffff; --sidebar:#101828; --sidebar-hi:#1d2939;
-    --sidebar-ink:#d0d5dd; --sidebar-dim:#667085;
-    --ink:#101828; --muted:#475467; --faint:#98a2b3; --line:#eaecf0; --line-strong:#d0d5dd;
-    --accent:#155eef; --accent-deep:#1849a9; --accent-soft:#eff4ff; --accent-line:#b2ccff;
-    --green-soft:#ecfdf3; --green-ink:#067647;
+    /* 팔레트는 랜딩(index.html)과 같은 단청 계열 — 두 페이지가 어긋나면 다른 서비스로 보인다 */
+    --bg:#f6f7f6; --panel:#ffffff; --sidebar:#0e1a18; --sidebar-hi:#1a2d2a;
+    --sidebar-ink:#c2d6d1; --sidebar-dim:#71908a;
+    --ink:#12211f; --muted:#48605c; --faint:#8fa3a0; --line:#e6eae8; --line-strong:#ccd5d2;
+    --accent:#b8492a; --accent-deep:#8f3620; --accent-soft:#fdf1ec; --accent-line:#f0c3b2;
+    --green-soft:#ecfdf3; --green-ink:#0a6b45;
     --amber-soft:#fffaeb; --amber-ink:#b54708; --red-soft:#fef3f2; --red-ink:#b42318;
     --shadow-xs:0 1px 2px rgba(16,24,40,.05);
     --shadow-sm:0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.04);
@@ -31,7 +32,7 @@
   .side .brand { display:flex; align-items:center; gap:10px; padding:6px 18px 16px;
                  border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:8px; }
   .side .brand .logo { width:30px; height:30px; flex:none; border-radius:7px;
-                       background:linear-gradient(135deg,#155eef,#12b0e8);
+                       background:linear-gradient(140deg,#0f6f68,#2aa79a);
                        display:flex; align-items:center; justify-content:center;
                        font-weight:800; font-size:13px; color:#fff; letter-spacing:-.02em; }
   .side .brand .nm { font-weight:700; font-size:13.5px; color:#fff; letter-spacing:-.01em; line-height:1.25; }
@@ -47,8 +48,8 @@
                     box-shadow:inset 2px 0 0 var(--accent); }
   .dnav li.soon { cursor:default; color:var(--sidebar-dim); }
   .dnav li.soon:hover { background:none; color:var(--sidebar-dim); }
-  .dnav .dot { width:6px; height:6px; border-radius:50%; background:#12b76a; flex:none; }
-  .dnav li.soon .dot { background:#344054; }
+  .dnav .dot { width:6px; height:6px; border-radius:50%; background:#2aa79a; flex:none; }
+  .dnav li.soon .dot { background:#294a45; }
   .dnav .cnt { margin-left:auto; font-size:10.5px; font-variant-numeric:tabular-nums;
                background:rgba(255,255,255,.08); border-radius:4px; padding:1px 6px; color:var(--sidebar-ink); }
   .dnav .soon-tag { margin-left:auto; font-size:9.5px; padding:1px 6px; border-radius:4px;
@@ -139,10 +140,10 @@
            margin-bottom:30px; box-shadow:var(--shadow-xs); }
   .phead, .prow { display:grid; grid-template-columns:minmax(220px,1.4fr) minmax(200px,2fr) 110px 110px 90px;
                   gap:14px; align-items:center; padding:10px 18px; }
-  .phead { background:#f9fafb; border-bottom:1px solid var(--line); font-size:10.5px; font-weight:600;
+  .phead { background:#f2f6f4; border-bottom:1px solid var(--line); font-size:10.5px; font-weight:600;
            letter-spacing:.06em; color:var(--muted); }
   .prow { border-bottom:1px solid var(--line); cursor:pointer; transition:background .1s; }
-  .prow:hover { background:#f9fafb; }
+  .prow:hover { background:#f2f6f4; }
   .prow:last-child, .pdetail:last-child { border-bottom:0; }
   .prow .t { font-weight:600; font-size:13px; }
   .prow .t small { display:block; font-family:var(--mono); font-size:10.5px; font-weight:400;
@@ -155,7 +156,7 @@
   .badge.dim { background:var(--panel); color:var(--muted); border:1px solid var(--line-strong);
                font-family:inherit; }
   .prow .act { text-align:right; }
-  .pdetail { display:none; padding:16px 18px 20px; background:#f9fafb; border-bottom:1px solid var(--line); }
+  .pdetail { display:none; padding:16px 18px 20px; background:#f2f6f4; border-bottom:1px solid var(--line); }
   .pdetail.open { display:block; }
   /* 스키마 표 — 컬럼명 · 타입 · 설명. 설명이 붙으면서 2열 격자로는 줄바꿈이 많아져 한 줄 = 한 컬럼 */
   .pdetail .cols { margin:10px 0 14px; border-top:1px solid var(--line); }
@@ -176,7 +177,7 @@
     .pdetail .col-item { grid-template-columns:1fr auto; }
     .pdetail .col-item .ds { grid-column:1/-1; }
   }
-  .endpoint { font-family:var(--mono); font-size:12px; background:#0c111d; color:#e4e9f1;
+  .endpoint { font-family:var(--mono); font-size:12px; background:#08110f; color:#e4e9f1;
               border-radius:6px; padding:10px 13px; overflow-x:auto; white-space:pre;
               border:1px solid #1d2939; }
   .endpoint .m { color:#32d583; font-weight:700; }
@@ -201,13 +202,13 @@
                 cursor:pointer; text-decoration:underline; text-underline-offset:3px; box-shadow:none; }
   .table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:6px; background:var(--panel); }
   table.data { border-collapse:collapse; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }
-  table.data th { background:#f9fafb; font-family:var(--mono); font-size:10px; color:var(--muted);
+  table.data th { background:#f2f6f4; font-family:var(--mono); font-size:10px; color:var(--muted);
                   font-weight:600; text-align:left; padding:7px 11px; white-space:nowrap;
                   border-bottom:1px solid var(--line); position:sticky; top:0; }
   table.data td { padding:6px 11px; border-bottom:1px solid var(--line); white-space:nowrap; }
   table.data tr:last-child td { border-bottom:0; }
-  table.data tbody tr:hover td { background:#f9fafb; }
-  .raw-json { display:none; font-family:var(--mono); font-size:11.5px; background:#f9fafb;
+  table.data tbody tr:hover td { background:#f2f6f4; }
+  .raw-json { display:none; font-family:var(--mono); font-size:11.5px; background:#f2f6f4;
               border:1px solid var(--line); border-radius:6px; padding:11px; overflow:auto; max-height:320px; }
   .empty { color:var(--faint); font-size:12.5px; padding:26px; text-align:center;
            border:1px dashed var(--line-strong); border-radius:6px; }
@@ -222,9 +223,9 @@
     <ul class="dnav" id="dnav"></ul>
     <div class="group">리소스</div>
     <ul class="dnav">
-      <li onclick="location.href='/'"><span class="dot" style="background:#3d4a44"></span>홈 · 서비스 소개</li>
-      <li data-hash="#playground" onclick="goHash('#playground')"><span class="dot" style="background:#3d4a44"></span>플레이그라운드</li>
-      <li data-hash="#auth" onclick="goHash('#auth')"><span class="dot" style="background:#3d4a44"></span>인증 · API 키</li>
+      <li onclick="location.href='/'"><span class="dot" style="background:#3a5450"></span>홈 · 서비스 소개</li>
+      <li data-hash="#playground" onclick="goHash('#playground')"><span class="dot" style="background:#3a5450"></span>플레이그라운드</li>
+      <li data-hash="#auth" onclick="goHash('#auth')"><span class="dot" style="background:#3a5450"></span>인증 · API 키</li>
     </ul>
     <div class="foot"><b>Serving Contract v1.1</b><br>갱신 일 1회 · 새벽 배치 후 발행<br>오류 규약 <code>problem+json</code><br>ASK-Seoul#58 프로토타입</div>
   </aside>

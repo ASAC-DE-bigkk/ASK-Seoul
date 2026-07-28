@@ -5,22 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASK: SEOUL — 서울 데이터 API 허브</title>
 <meta name="description" content="서울의 문화·행사 데이터를 수집·정제해 바로 조인할 수 있는 형태로 제공하는 데이터 API 허브. 매일 자동 갱신 · 행정동 단위 공간축 · 이메일만으로 즉시 키 발급.">
-<meta name="theme-color" content="#0b1220">
+<meta name="theme-color" content="#08110f">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ASK: SEOUL">
 <meta property="og:title" content="ASK: SEOUL — 서울 데이터 API 허브">
 <meta property="og:description" content="서울에서 지금 무슨 일이 일어나는지, API 한 줄로. 미리보기는 키 없이 무료.">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23155eef'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EAS%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f6f68'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EAS%3C/text%3E%3C/svg%3E">
 <style>
   :root {
-    --bg:#f7f8fa; --panel:#ffffff;
-    --ink:#101828; --muted:#475467; --faint:#98a2b3; --line:#eaecf0; --line-strong:#d0d5dd;
-    --accent:#155eef; --accent-deep:#1849a9; --accent-soft:#eff4ff; --accent-line:#b2ccff;
-    --green-soft:#ecfdf3; --green-ink:#067647; --red-ink:#b42318; --red-soft:#fef3f2;
-    /* 어두운 계기판 표면 — 히어로·라이브 패널이 공유한다 */
-    --deck:#0b1220; --deck-2:#111c2e; --deck-line:rgba(255,255,255,.09);
-    --deck-ink:#c8d3e2; --deck-dim:#7c8ba1;
+    /* 팔레트 — 단청(丹靑)에서 가져왔다. 청록이 데이터, 주홍이 행동.
+       제네릭 SaaS 블루를 쓰지 않는 이유: 이 제품의 소재가 서울의 문화이기 때문이다.
+       중성색도 순회색이 아니라 청록 쪽으로 아주 살짝 기울여 놓았다. */
+    --bg:#f6f7f6; --panel:#ffffff;
+    --ink:#12211f; --muted:#48605c; --faint:#8fa3a0; --line:#e6eae8; --line-strong:#ccd5d2;
+    --accent:#b8492a; --accent-deep:#8f3620; --accent-soft:#fdf1ec; --accent-line:#f0c3b2;
+    --teal:#0f6f68; --teal-deep:#0a534e; --teal-soft:#e9f4f2; --teal-line:#a9d5cf;
+    --green-soft:#ecfdf3; --green-ink:#0a6b45; --red-ink:#b42318; --red-soft:#fef3f2;
+    /* 어두운 표면 — 히어로·데모·CTA 가 공유한다 */
+    --deck:#08110f; --deck-2:#0e1a18; --deck-line:rgba(214,240,235,.10);
+    --deck-ink:#c2d6d1; --deck-dim:#71908a;
     --shadow-xs:0 1px 2px rgba(16,24,40,.05);
     --shadow-sm:0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.04);
     --shadow-md:0 6px 16px rgba(11,18,32,.10);
@@ -34,7 +38,7 @@
   a { color:inherit; text-decoration:none; }
   .wrap { max-width:1140px; margin:0 auto; padding:0 24px; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
-  .deck :focus-visible, .nav :focus-visible { outline-color:#84adff; }
+  .deck :focus-visible, .nav :focus-visible { outline-color:#5fd6c6; }
   /* 데이터를 가리키는 미세 라벨 — 이 페이지의 서체 규칙 */
   .lab { font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.12em;
          text-transform:uppercase; color:var(--faint); }
@@ -46,7 +50,7 @@
   .nav-in { display:flex; align-items:center; gap:20px; height:56px; }
   .brand { display:flex; align-items:center; gap:10px; }
   .brand .logo { width:30px; height:30px; border-radius:7px;
-                 background:linear-gradient(135deg,#155eef,#12b0e8);
+                 background:linear-gradient(140deg,#0f6f68,#2aa79a);
                  display:flex; align-items:center; justify-content:center;
                  font-weight:800; font-size:13px; color:#fff; }
   .brand .nm { font-weight:700; font-size:14px; color:#fff; letter-spacing:-.01em; line-height:1.2; }
@@ -71,24 +75,32 @@
     .brand .sub { display:none; }
   }
 
-  /* ─── hero: 계기판 표면 위 2열 ─── */
+  /* ─── hero: 공간축 격자 위 ───
+     배경은 426칸 격자다 — 서울의 행정동 수와 같은 칸 수. 이 제품의 차별점이
+     "행정동 단위로 자를 수 있다"인데, 그 사실을 문장이 아니라 표면으로 말한다.
+     칸의 밝기는 장식이지 실측이 아니다(그래서 지도라고 부르지 않는다). */
   .deck { background:var(--deck); color:#fff; }
-  .hero { position:relative; overflow:hidden; padding:56px 0 68px; }
-  /* 방사형 글로우 대신 방안지 격자 — 차트를 그리는 표면이라는 신호 */
-  .hero::before { content:""; position:absolute; inset:0; pointer-events:none;
-    background-image:linear-gradient(var(--deck-line) 1px, transparent 1px),
-                     linear-gradient(90deg, var(--deck-line) 1px, transparent 1px);
-    background-size:56px 56px;
-    -webkit-mask-image:radial-gradient(1000px 420px at 22% 30%, #000 20%, transparent 78%);
-            mask-image:radial-gradient(1000px 420px at 22% 30%, #000 20%, transparent 78%); }
-  .hero-in { position:relative; max-width:660px; }
+  .hero { position:relative; overflow:hidden; padding:84px 0 92px; }
+  #field { position:absolute; inset:0; width:100%; height:100%; pointer-events:none;
+           -webkit-mask-image:radial-gradient(120% 100% at 78% 44%, #000 12%, transparent 72%);
+                   mask-image:radial-gradient(120% 100% at 78% 44%, #000 12%, transparent 72%); }
+  /* 아래 섹션으로 넘어가는 경계를 지운다 */
+  .hero::after { content:""; position:absolute; left:0; right:0; bottom:0; height:170px;
+                 background:linear-gradient(transparent, var(--deck)); pointer-events:none; }
+  .hero .wrap { position:relative; }
+  .hero-in { position:relative; z-index:2; max-width:700px; }
 
-  .hero h1 { font-size:clamp(28px, 4.2vw, 42px); font-weight:800; letter-spacing:-.025em;
-             line-height:1.22; text-wrap:balance; margin-top:12px; }
-  .hero h1 em { font-style:normal; color:#84adff; }
-  .hero .sub { font-size:15px; color:var(--deck-ink); margin-top:14px; max-width:480px; }
+  .hero h1 { font-size:clamp(34px, 5.6vw, 62px); font-weight:800; letter-spacing:-.038em;
+             line-height:1.06; text-wrap:balance; margin-top:18px; }
+  .hero h1 .n { font-variant-numeric:tabular-nums; color:#5fd6c6; }
+  .hero h1 .l2 { display:block; color:var(--deck-ink); font-weight:300; letter-spacing:-.03em; }
+  .hero .sub { font-size:15.5px; color:var(--deck-ink); margin-top:20px; max-width:470px; }
   .hero .sub b { color:#fff; font-weight:600; }
-  .search-hero { margin-top:26px; display:flex; gap:8px; max-width:480px; }
+  /* 격자가 무엇인지 밝히는 각주 — 데이터인 척하지 않는다 */
+  .hero .fieldnote { position:absolute; right:0; bottom:-4px; z-index:2; text-align:right;
+                     max-width:200px; line-height:1.5; }
+  @media (max-width:1080px){ .hero .fieldnote { display:none; } }
+  .search-hero { margin-top:28px; display:flex; gap:8px; max-width:470px; }
   .search-hero .box { flex:1; position:relative; }
   .search-hero input { width:100%; font:inherit; font-size:14px; padding:12px 14px 12px 40px;
                        border-radius:8px; border:1px solid var(--deck-line);
@@ -96,7 +108,7 @@
                        transition:border-color .12s, background .12s, box-shadow .12s; }
   .search-hero input::placeholder { color:var(--deck-dim); }
   .search-hero input:focus { border-color:var(--accent); background:rgba(255,255,255,.08);
-                             box-shadow:0 0 0 3px rgba(21,94,239,.25); }
+                             box-shadow:0 0 0 3px rgba(184,73,42,.28); }
   .search-hero .ico { position:absolute; left:13px; top:50%; transform:translateY(-50%);
                       color:var(--deck-dim); display:flex; }
   .search-hero button { font:inherit; font-size:13.5px; font-weight:600; color:#fff; background:var(--accent);
@@ -158,16 +170,16 @@
              background:var(--line); border:1px solid var(--line); border-radius:10px;
              overflow:hidden; box-shadow:var(--shadow-xs); }
   .dom { padding:13px 16px; background:var(--panel); display:flex; flex-direction:column; gap:2px; }
-  a.dom:hover { background:#f9fafb; }
+  a.dom:hover { background:#f2f6f4; }
   .dom .t { font-weight:700; font-size:13px; display:flex; align-items:center; gap:7px; }
-  .dom .t i { width:6px; height:6px; border-radius:50%; background:#12b76a; flex:none; }
+  .dom .t i { width:6px; height:6px; border-radius:50%; background:#2aa79a; flex:none; }
   .dom.soon .t { color:var(--muted); } .dom.soon .t i { background:var(--line-strong); }
   .dom .d { font-size:11px; color:var(--faint); }
   .dom .n { font-family:var(--mono); font-size:10px; font-weight:600; color:var(--accent-deep); margin-top:4px; }
   .dom.soon .n { color:var(--faint); }
 
   /* skeleton · 상태 */
-  .sk { position:relative; overflow:hidden; background:#eef0f3; border-radius:5px; color:transparent; }
+  .sk { position:relative; overflow:hidden; background:#e9eeec; border-radius:5px; color:transparent; }
   .sk::after { content:""; position:absolute; inset:0; transform:translateX(-100%);
                background:linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
                animation:shimmer 1.3s infinite; }
@@ -194,17 +206,17 @@
           overflow:hidden; box-shadow:var(--shadow-md); }
   .demo .bar { display:flex; align-items:center; gap:8px; padding:10px 15px;
                border-bottom:1px solid var(--deck-line); }
-  .demo .bar i { width:7px; height:7px; border-radius:50%; background:#344054; flex:none; }
+  .demo .bar i { width:7px; height:7px; border-radius:50%; background:#294a45; flex:none; }
   .demo .qs { margin-left:auto; display:flex; gap:6px; }
   .demo .qs button { width:7px; height:7px; padding:0; border:0; border-radius:50%;
-                     background:#344054; cursor:pointer; transition:background .15s; }
-  .demo .qs button[aria-selected="true"] { background:#84adff; }
+                     background:#294a45; cursor:pointer; transition:background .15s; }
+  .demo .qs button[aria-selected="true"] { background:#5fd6c6; }
   .demo .body { padding:14px 16px 16px; }
   .demo .q { font-size:13px; font-weight:600; color:#fff; line-height:1.45; }
   .demo .cmd { font-family:var(--mono); font-size:11.5px; line-height:1.6; color:#e4e9f1;
                margin-top:9px; word-break:break-all; min-height:2.2em; }
-  .demo .cmd .g { color:#32d583; font-weight:700; } .demo .cmd .b { color:#84adff; }
-  .demo .caret { display:inline-block; width:7px; height:12px; background:#84adff;
+  .demo .cmd .g { color:#7fd6a8; font-weight:700; } .demo .cmd .b { color:#5fd6c6; }
+  .demo .caret { display:inline-block; width:7px; height:12px; background:#5fd6c6;
                  vertical-align:-1px; animation:blink 1s steps(1) infinite; }
   @keyframes blink { 50% { opacity:0; } }
   /* 좁은 화면에서 표가 본문을 밀지 않게 — 가로 스크롤은 표 안에서만 */
@@ -220,7 +232,7 @@
   .demo tr.in td { animation:rowin .3s ease both; }
   @keyframes rowin { from { opacity:0; transform:translateY(5px); } }
   .demo .fo { margin-top:11px; font-size:11px; color:var(--deck-dim); line-height:1.5; }
-  .demo .fo b { color:#84adff; font-weight:600; }
+  .demo .fo b { color:#5fd6c6; font-weight:600; }
   .demo .fo code { font-family:var(--mono); font-size:10.5px; }
 
   /* cta */
@@ -274,12 +286,13 @@
 </nav>
 
 <header class="deck hero">
+  <canvas id="field" aria-hidden="true"></canvas>
   <div class="wrap">
     <div class="hero-in">
       <div class="lab">Seoul Culture · Data API</div>
-      <h1>서울에서 지금 무슨 일이 일어나는지,<br><em>API 한 줄로</em></h1>
-      <p class="sub">공공 원천 네 곳을 매일 새벽 수집·정제해 <b>바로 조인할 수 있는 형태</b>로 제공합니다.
-         행정동 단위 공간축 · 기간 겹침 질의 · <b>키 발급부터 첫 호출까지 1분</b>.</p>
+      <h1>서울을 <span class="n">426</span>개 조각으로<span class="l2">읽는 API</span></h1>
+      <p class="sub">공공 원천 네 곳을 매일 새벽 수집·정제해 <b>행정동 단위로 잘라</b> 제공합니다.
+         남의 데이터에 <b>그대로 조인</b>되는 공간축 · 기간 겹침 질의 · 키 발급부터 첫 호출까지 1분.</p>
       <form class="search-hero" id="heroSearch">
         <div class="box">
           <span class="ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span>
@@ -294,6 +307,7 @@
         <a href="/catalog?q=외식">동네 상권</a>
       </div>
     </div>
+    <p class="lab fieldnote">격자 한 칸 = 행정동 하나<br>서울 426동</p>
   </div>
 </header>
 
@@ -527,6 +541,85 @@ async function playDemo(i, manual) {
   playDemo((i + 1) % DEMOS.length);
 }
 
+// ── 히어로 배경: 426칸 격자
+// 칸 수만 사실이다(서울 행정동 426개). 칸의 밝기는 장식이며 어떤 실측값도 나타내지 않는다 —
+// 그래서 지도라고 부르지 않고, 화면에도 "격자 한 칸 = 행정동 하나"까지만 적는다.
+function bootField() {
+  const cv = $("field");
+  const ctx = cv.getContext("2d");
+  const CELLS = 426;
+  const TEAL = [95, 214, 198], EMBER = [214, 106, 62];
+  let cols = 0, rows = 0, cw = 0, ch = 0, dpr = 1, sparks = [], raf = 0, t0 = 0;
+
+  function layout() {
+    const r = cv.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.round(r.width * dpr);
+    cv.height = Math.round(r.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 426칸을 화면비에 맞춰 나눈다 — 칸 수는 고정, 격자 모양만 반응형
+    rows = Math.max(5, Math.round(Math.sqrt(CELLS / (r.width / r.height))));
+    cols = Math.ceil(CELLS / rows);
+    const gap = 5;
+    cw = (r.width - gap * (cols - 1)) / cols + gap;
+    ch = (r.height - gap * (rows - 1)) / rows + gap;
+    return true;
+  }
+
+  function paint(now) {
+    const t = (now - t0) / 1000;
+    const r = cv.getBoundingClientRect();
+    ctx.clearRect(0, 0, r.width, r.height);
+    const gap = 5, sw = cw - gap, sh = ch - gap, rad = Math.min(2.5, sw / 4);
+    for (let i = 0; i < CELLS; i++) {
+      const c = i % cols, rw = (i / cols) | 0;
+      const x = c * cw, y = rw * ch;
+      const wave = 0.5 + 0.5 * Math.sin(t * 0.55 - (c * 0.19 + rw * 0.31));
+      let a = 0.055 + wave * 0.085;
+      let col = TEAL;
+      for (const s of sparks) {
+        if (s.i !== i) continue;
+        const k = 1 - (t - s.t) / s.life;
+        if (k > 0) { a = Math.max(a, 0.10 + k * 0.62); col = s.col; }
+      }
+      ctx.fillStyle = "rgba(" + col[0] + "," + col[1] + "," + col[2] + "," + a.toFixed(3) + ")";
+      ctx.beginPath();
+      ctx.roundRect(x, y, sw, sh, rad);
+      ctx.fill();
+    }
+    sparks = sparks.filter((s) => t - s.t < s.life);
+    if (sparks.length < 9 && Math.random() < 0.09) {
+      sparks.push({ i: (Math.random() * CELLS) | 0, t, life: 1.4 + Math.random() * 1.2,
+                    col: Math.random() < 0.18 ? EMBER : TEAL });
+    }
+  }
+
+  function loop(now) { paint(now); raf = requestAnimationFrame(loop); }
+  function stop() { if (raf) { cancelAnimationFrame(raf); raf = 0; } }
+  function start() {
+    if (raf || !layout()) return;
+    t0 = performance.now();
+    // 애니메이션을 끈 사용자도 격자에 리듬이 보이게 — 밝은 칸 몇 개를 미리 심어 한 장으로 완성한다
+    if (REDUCED && !sparks.length) {
+      for (let k = 0; k < 14; k++)
+        sparks.push({ i: (Math.random() * CELLS) | 0, t: 0, life: 1e6,
+                      col: k % 6 === 0 ? EMBER : TEAL });
+    }
+    paint(t0);                 // 첫 프레임은 rAF 를 기다리지 않는다 — 빈 격자가 한 순간도 보이지 않게
+    if (REDUCED) return;       // 정지 화면 한 장만
+    raf = requestAnimationFrame(loop);
+  }
+
+  // roundRect 가 없는 구형 브라우저 — 격자를 포기하고 조용히 빠진다(배경일 뿐이다)
+  if (!ctx || !ctx.roundRect) { cv.style.display = "none"; return; }
+  addEventListener("resize", () => { if (layout()) paint(performance.now()); });
+  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+  new IntersectionObserver((es) => (es[0].isIntersecting ? start() : stop()),
+                           { threshold: 0 }).observe(cv);
+  start();
+}
+
 function bootDemo() {
   demoDots();
   // 화면 밖이거나 탭이 가려지면 멈춘다 — 안 보는 애니메이션에 호출을 쓰지 않는다
@@ -605,6 +698,7 @@ async function bootCatalog() {
   }).join("");
 }
 
+bootField();
 bootCatalog();
 bootDemo();
 </script>
