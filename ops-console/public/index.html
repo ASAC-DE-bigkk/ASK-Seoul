@@ -57,8 +57,21 @@
                  border:0; border-radius:7px; padding:0 18px; cursor:pointer; }
   .gate .err { color:var(--red-ink); font-size:12.5px; margin-top:10px; min-height:1.2em; }
 
-  h2.sec { font-size:15px; font-weight:700; margin:24px 0 4px; display:flex; align-items:baseline; gap:10px; }
-  h2.sec:first-of-type { margin-top:0; }
+  /* 탭 — 두 품질을 나눠 보되, 라벨의 점이 "안 보는 쪽이 아픈지"를 먼저 알려준다.
+     탭으로 가리면 문제를 놓치기 쉬운데, 상태 점이 그 대가를 상쇄한다. */
+  .tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin:0 0 18px; }
+  .tabs button { font:inherit; font-size:13.5px; font-weight:600; color:var(--muted);
+                 background:none; border:0; border-bottom:2px solid transparent; padding:9px 16px;
+                 cursor:pointer; display:flex; align-items:center; gap:8px; margin-bottom:-1px; }
+  .tabs button:hover { color:var(--ink); }
+  .tabs button[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); }
+  .tabs button .dot { width:7px; height:7px; border-radius:50%; background:var(--line-strong); flex:none; }
+  .tabs button .dot.ok { background:var(--ok); }
+  .tabs button .dot.bad { background:var(--red-ink); }
+  .tabs button .sub { font-weight:400; font-size:11.5px; color:var(--faint); }
+  .pane[hidden] { display:none; }
+
+  h2.sec { font-size:15px; font-weight:700; margin:0 0 4px; display:flex; align-items:baseline; gap:10px; }
   h2.sec span { font-size:12px; font-weight:400; color:var(--faint); }
 
   .kpis { display:grid; grid-template-columns:repeat(4,1fr); background:var(--panel);
@@ -141,8 +154,20 @@
   </div>
 
   <div id="app" hidden>
+    <div class="tabs" role="tablist" aria-label="품질 영역">
+      <button role="tab" id="tab-pipeline" aria-controls="pane-pipeline" aria-selected="true">
+        <span class="dot" id="dot-pipeline"></span>파이프라인 품질
+        <span class="sub">수집·변환</span>
+      </button>
+      <button role="tab" id="tab-serving" aria-controls="pane-serving" aria-selected="false" tabindex="-1">
+        <span class="dot" id="dot-serving"></span>서빙 품질
+        <span class="sub">외부 응답</span>
+      </button>
+    </div>
+
     <div id="banners"></div>
 
+    <section class="pane" id="pane-pipeline" role="tabpanel" aria-labelledby="tab-pipeline" tabindex="0">
     <h2 class="sec">파이프라인 품질 <span>수집·변환이 제 몫을 했나 · gold_*_slo_daily</span></h2>
     <div class="kpis" id="pipeKpis"></div>
     <div class="grid">
@@ -159,7 +184,9 @@
         <div class="bd" id="badDays"></div>
       </div>
     </div>
+    </section>
 
+    <section class="pane" id="pane-serving" role="tabpanel" aria-labelledby="tab-serving" tabindex="0" hidden>
     <h2 class="sec">서빙 품질 <span>외부에 잘 나가고 있나 · 게이트웨이 _request_log</span></h2>
     <div class="kpis" id="servKpis"></div>
     <div class="grid">
@@ -188,6 +215,7 @@
         <div class="bd" id="keys"></div>
       </div>
     </div>
+    </section>
   </div>
 </div>
 
@@ -213,17 +241,43 @@ const kpis = (el, items) => {
     v + "</div><div class='k'>" + esc(k) + "</div></div>").join("");
 };
 
+// ── 탭. 상태는 URL 해시에 둔다 — 새로고침·링크 공유에도 보던 자리가 유지된다.
+const PANES = ["pipeline", "serving"];
+function showTab(name) {
+  if (!PANES.includes(name)) name = PANES[0];
+  for (const p of PANES) {
+    const on = p === name;
+    $("tab-" + p).setAttribute("aria-selected", String(on));
+    $("tab-" + p).tabIndex = on ? 0 : -1;
+    $("pane-" + p).hidden = !on;
+  }
+  // 배너는 자기 탭에서만 — 서빙 탭에서 파이프라인 경고를 띄우면 남의 문제로 읽힌다
+  for (const el of document.querySelectorAll("#banners [data-pane]"))
+    el.hidden = el.dataset.pane !== name;
+  if (location.hash.slice(1) !== name) history.replaceState(null, "", "#" + name);
+}
+for (const p of PANES) {
+  $("tab-" + p).addEventListener("click", () => showTab(p));
+  $("tab-" + p).addEventListener("keydown", (e) => {   // 좌우 화살표로 탭 이동(WAI-ARIA 관행)
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    e.preventDefault();
+    const next = PANES[(PANES.indexOf(p) + (e.key === "ArrowRight" ? 1 : PANES.length - 1)) % PANES.length];
+    showTab(next); $("tab-" + next).focus();
+  });
+}
+addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+
 function render(d) {
-  // ── 배너: 샘플 데이터·누락 섹션은 화면 맨 위에서 밝힌다
+  // ── 배너: 샘플 데이터·누락 섹션을 밝힌다. data-pane 이 붙은 것은 해당 탭에서만 보인다
   const b = [];
   if (d.meta.pipeline_is_sample)
-    b.push("<div class='banner warn'><b>파이프라인 값은 합성 샘플입니다</b> — 팀 D1 쓰기가 막혀 있어 " +
+    b.push("<div class='banner warn' data-pane='pipeline'><b>파이프라인 값은 합성 샘플입니다</b> — 팀 D1 쓰기가 막혀 있어 " +
            "실제 SLO 마트를 가져오지 못했습니다. 이 값으로 운영 판단을 하지 마세요.</div>");
   if (d.meta.missing.includes("serving"))
-    b.push("<div class='banner info'>서빙 로그를 찾지 못했습니다 — 게이트웨이 D1 상태를 공유하도록 " +
+    b.push("<div class='banner info' data-pane='serving'>서빙 로그를 찾지 못했습니다 — 게이트웨이 D1 상태를 공유하도록 " +
            "<code>--persist-to</code> 설정을 확인하세요.</div>");
   if (d.meta.missing.includes("pipeline"))
-    b.push("<div class='banner info'>파이프라인 테이블이 없습니다 — <code>npm run seed</code> 를 먼저 실행하세요.</div>");
+    b.push("<div class='banner info' data-pane='pipeline'>파이프라인 테이블이 없습니다 — <code>npm run seed</code> 를 먼저 실행하세요.</div>");
   $("banners").innerHTML = b.join("");
 
   // ── 파이프라인
@@ -326,6 +380,14 @@ function render(d) {
     { t:"days", r:true, get:(r) => r.active_days > 1
         ? "<span class='pill ok'>" + r.active_days + "</span>" : r.active_days },
   ], s.keys, "인증 호출 없음");
+
+  // ── 탭 라벨의 상태 점 — 탭으로 가린 쪽이 아픈지를 전환 없이 알려준다.
+  // 판정 기준은 KPI 의 경고 조건과 같다(정기런 실패·계약 위반 / 에러율 5% 이상·0행 발생).
+  const pipeBad = badDays.length > 0 || viol > 0;
+  const servBad = errPct >= 5 || emptyN > 0;
+  $("dot-pipeline").className = "dot " + (slo.length ? (pipeBad ? "bad" : "ok") : "");
+  $("dot-serving").className = "dot " + (calls ? (servBad ? "bad" : "ok") : "");
+  showTab(location.hash.slice(1) || PANES[0]);   // 배너 가시성도 여기서 맞춰진다
 }
 
 async function load() {
