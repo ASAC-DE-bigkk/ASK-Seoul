@@ -29,7 +29,6 @@ npm run usage        # 사용 리포트 (아래 '사용 계측' 참고)
 | `GET /api/catalog` | — | 서빙 제품 목록(계약 v1.1 `_catalog` 15컬럼) |
 | `GET /api/data/<table>` | Bearer | 조회. `<col>=<val>` 등가 필터 · `from`/`to`(time_axis) · `limit`(≤5000). 유효 요청만 쿼터 소모(400/404 무과금), 초과 시 429 |
 | `GET /api/me` | Bearer | 오늘 사용량/쿼터 (쿼터 무소모) |
-| `GET /api/ops/summary` | **OPS_TOKEN** | 운영자용 서빙 품질 집계 — `?days=1..90`(기본 7). 아래 참고 |
 
 ## 사용 계측 — 무엇이 실제로 쓰이나
 
@@ -45,23 +44,14 @@ npm run usage        # 사용 리포트 (아래 '사용 계측' 참고)
 | ⑥ 조용한 0행 | 200인데 빈 응답 — 커버리지 구멍 |
 | ⑦ 키별 | 발급만 받고 만 키 vs 여러 날 돌아온 키 |
 
-### 운영 화면 `/ops` — 서빙 품질
+### 운영 화면은 별도 프로젝트다
 
-같은 질문을 화면으로 본다(`npm run usage` 는 SQL, `/ops` 는 UI — 정의가 갈리지 않게 문구를 맞췄다).
+서빙 품질을 사람이 보는 화면은 **[ops-console](../ops-console/)** 에 있다 — 마켓플레이스와
+다른 Worker · 다른 호스트다. 청중이 다르고(외부 고객 vs 운영자), 배포 단위가 갈려야 사고
+반경도 갈리기 때문이다. 그쪽 콘솔은 이 게이트웨이의 `_request_log` 와 파이프라인 SLO 를
+한 화면에서 본다.
 
-```bash
-# 토큰 설정 후 재기동 (.dev.vars 는 .gitignore 대상 — 절대 커밋 금지)
-echo "OPS_TOKEN=$(openssl rand -hex 16)" > .dev.vars
-npm run dev        # http://localhost:8787/ops
-```
-
-**경계**: 여기는 *서빙* 품질만 본다 — 외부에 잘 나가고 있나(호출량·실패·조용한 0행·재방문).
-*파이프라인* 품질(SLO 마트·dbt test·DAG run)은 **팀 대시보드(ASK-Seoul-Dashboard) 소관**이다.
-화면 하나로 합치자고 데이터를 스택 건너로 복사하지 않는다 — 그 복사 경로가 곧 새 고장 지점이 된다.
-
-**인증 한계**: 지금은 공유 토큰이라 "누가 봤나"가 남지 않는다. 공개 배포 시
-Cloudflare Access 나 org OAuth 로 **교체 필수**(멘토 게이트). `OPS_TOKEN` 이 없으면 503 으로
-기능이 꺼진다 — 인증 없는 운영 화면이 실수로 열리는 것보다 낫다.
+여기(`npm run usage`)는 같은 질문을 SQL 로 보는 경로로 남겨 둔다.
 
 수집 원칙 3가지 — 스키마 주석([migrations/0002_request_log.sql](migrations/0002_request_log.sql))에 근거를 남겼다:
 

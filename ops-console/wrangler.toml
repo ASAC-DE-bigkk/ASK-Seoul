@@ -1,0 +1,19 @@
+# ops-console — 운영자용 통합 품질 콘솔 (ASK-Seoul#58)
+# 마켓플레이스(serving-gateway)와 **다른 Worker · 다른 호스트**다. 청중이 다르기 때문이다 —
+# 저쪽은 외부 고객(키 발급), 여기는 운영자(품질). 배포 단위가 갈려야 사고 반경도 갈린다.
+#
+# ⚠️ 로컬 전용: wrangler dev --local 로만 구동. deploy 는 멘토 게이트(#476 ①).
+# D1 은 게이트웨이와 **같은 로컬 상태를 공유**한다 — `npm run dev` 의 --persist-to 참고.
+# (서빙 품질 원본인 _request_log 가 게이트웨이 쪽 D1 에 쌓이기 때문)
+name = "ask-seoul-ops-console"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+
+[assets]
+directory = "public"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ask-seoul-dev-d1"
+database_id = "9db0e851-558e-489f-9e76-f131d25aa267"

@@ -1,0 +1,12 @@
+{
+  "name": "ask-seoul-ops-console",
+  "private": true,
+  "description": "운영자용 통합 품질 콘솔 — 파이프라인 + 서빙 (ASK-Seoul#58, 로컬 전용)",
+  "scripts": {
+    "seed": "wrangler d1 execute ask-seoul-dev-d1 --local --persist-to ../serving-gateway/.wrangler/state --file=migrations/0001_ops_slo.sql && wrangler d1 execute ask-seoul-dev-d1 --local --persist-to ../serving-gateway/.wrangler/state --file=fixtures/slo_sample.sql",
+    "dev": "wrangler dev --port 8788 --persist-to ../serving-gateway/.wrangler/state"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

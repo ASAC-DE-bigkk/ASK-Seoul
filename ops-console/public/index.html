@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>품질 콘솔 — ASK: SEOUL 운영</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a534e'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='14' font-weight='700' fill='%23fff' text-anchor='middle'%3EOPS%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    /* 마켓플레이스와 같은 단청 팔레트지만 표면은 더 어둡다 — 운영 도구라는 신호 */
+    --bg:#f4f6f5; --panel:#ffffff;
+    --ink:#12211f; --muted:#48605c; --faint:#8fa3a0; --line:#e6eae8; --line-strong:#ccd5d2;
+    --accent:#b8492a; --accent-deep:#8f3620; --accent-soft:#fdf1ec; --accent-line:#f0c3b2;
+    --teal:#0f6f68; --teal-deep:#0a534e; --teal-soft:#e9f4f2; --teal-line:#a9d5cf;
+    --ok:#0a6b45; --ok-soft:#e8f6ee;
+    --red-ink:#b42318; --red-soft:#fef3f2; --amber-ink:#b54708; --amber-soft:#fffaeb;
+    --deck:#08110f; --deck-line:rgba(214,240,235,.10); --deck-ink:#c2d6d1; --deck-dim:#71908a;
+    --shadow-xs:0 1px 2px rgba(16,24,40,.05);
+    --mono:ui-monospace,'Cascadia Code',Consolas,'SF Mono',monospace;
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { font-family:Pretendard,'Pretendard Variable','Apple SD Gothic Neo','Malgun Gothic',
+                     system-ui,-apple-system,sans-serif;
+         background:var(--bg); color:var(--ink); font-size:14.5px; line-height:1.65; word-break:keep-all;
+         -webkit-font-smoothing:antialiased; }
+  a { color:inherit; }
+  .lab { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em;
+         text-transform:uppercase; color:var(--faint); }
+
+  .top { background:var(--deck); color:#fff; padding:0 26px; height:56px;
+         display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:5; }
+  .top .mark { font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.1em;
+               background:var(--teal-deep); padding:4px 9px; border-radius:5px; }
+  .top h1 { font-size:15px; font-weight:600; letter-spacing:-.01em; }
+  .top .sp { flex:1; }
+  .top select { font:inherit; font-size:12.5px; background:rgba(255,255,255,.06); color:#fff;
+                border:1px solid var(--deck-line); border-radius:6px; padding:4px 8px; }
+  .top a { font-size:12.5px; color:var(--deck-ink); text-decoration:none; }
+  .top a:hover { color:#fff; text-decoration:underline; text-underline-offset:3px; }
+
+  .wrap { max-width:1220px; margin:0 auto; padding:20px 26px 64px; }
+  .banner { border-radius:8px; padding:10px 14px; font-size:12.5px; margin-bottom:16px; }
+  .banner.warn { background:var(--amber-soft); border:1px solid #fedf89; color:#93370d; }
+  .banner.info { background:var(--teal-soft); border:1px solid var(--teal-line); color:var(--teal-deep); }
+  .banner b { font-weight:700; }
+
+  .gate { max-width:420px; margin:60px auto; background:var(--panel); border:1px solid var(--line);
+          border-radius:10px; padding:24px; box-shadow:var(--shadow-xs); }
+  .gate h2 { font-size:16px; font-weight:700; }
+  .gate p { font-size:12.5px; color:var(--muted); margin-top:6px; }
+  .gate .row { display:flex; gap:8px; margin-top:16px; }
+  .gate input { flex:1; font:inherit; font-size:13.5px; padding:9px 12px; border-radius:7px;
+                border:1px solid var(--line-strong); outline:none; }
+  .gate input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+  .gate button { font:inherit; font-size:13.5px; font-weight:600; color:#fff; background:var(--accent);
+                 border:0; border-radius:7px; padding:0 18px; cursor:pointer; }
+  .gate .err { color:var(--red-ink); font-size:12.5px; margin-top:10px; min-height:1.2em; }
+
+  h2.sec { font-size:15px; font-weight:700; margin:24px 0 4px; display:flex; align-items:baseline; gap:10px; }
+  h2.sec:first-of-type { margin-top:0; }
+  h2.sec span { font-size:12px; font-weight:400; color:var(--faint); }
+
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); background:var(--panel);
+          border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow-xs); margin:10px 0 16px; }
+  @media (max-width:760px){ .kpis { grid-template-columns:repeat(2,1fr); } }
+  .kpi { padding:13px 18px; border-left:1px solid var(--line); }
+  .kpi:first-child { border-left:0; }
+  .kpi .v { font-size:22px; font-weight:800; letter-spacing:-.02em; margin-top:3px;
+            font-variant-numeric:tabular-nums; }
+  .kpi .v.bad { color:var(--red-ink); } .kpi .v.good { color:var(--ok); }
+  .kpi .k { font-size:11.5px; color:var(--muted); }
+
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:960px){ .grid { grid-template-columns:1fr; } }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px;
+          box-shadow:var(--shadow-xs); overflow:hidden; }
+  .card.wide { grid-column:1/-1; }
+  .card .hd { padding:13px 18px 0; }
+  .card .hd h3 { font-size:13.5px; font-weight:700; }
+  .card .hd p { font-size:11.5px; color:var(--faint); margin-top:1px; }
+  .card .bd { padding:10px 18px 16px; overflow-x:auto; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:.06em;
+       text-transform:uppercase; color:var(--faint); padding:6px 10px 6px 0; white-space:nowrap;
+       border-bottom:1px solid var(--line); }
+  td { padding:7px 10px 7px 0; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums;
+       white-space:nowrap; }
+  tr:last-child td { border-bottom:0; }
+  td.name { font-family:var(--mono); font-size:11.5px; white-space:normal; word-break:break-all; }
+  td.r, th.r { text-align:right; }
+  .pill { font-family:var(--mono); font-size:10px; font-weight:600; padding:1px 7px; border-radius:4px; }
+  .pill.bad { background:var(--red-soft); color:var(--red-ink); }
+  .pill.warn { background:var(--amber-soft); color:var(--amber-ink); }
+  .pill.ok { background:var(--ok-soft); color:var(--ok); }
+  .pill.dim { background:var(--bg); color:var(--faint); border:1px solid var(--line); }
+  .empty { padding:16px 0; font-size:12.5px; color:var(--faint); }
+
+  /* SLO 캘린더 — 하루 = 칸 하나. 초록/노랑/빨강이 곧 "그날 파이프라인이 어땠나" */
+  .cal { display:flex; gap:4px; flex-wrap:wrap; margin-top:8px; }
+  .cal .d { width:34px; height:34px; border-radius:6px; display:flex; align-items:center;
+            justify-content:center; font-family:var(--mono); font-size:10.5px; font-weight:600;
+            border:1px solid transparent; }
+  .cal .d.pass { background:var(--ok-soft); color:var(--ok); border-color:#b7e4cb; }
+  .cal .d.partial { background:var(--amber-soft); color:var(--amber-ink); border-color:#fedf89; }
+  .cal .d.fail { background:var(--red-soft); color:var(--red-ink); border-color:#fecdc9; }
+  .cal-legend { display:flex; gap:14px; margin-top:10px; font-size:11.5px; color:var(--muted); }
+
+  .bars { display:flex; align-items:flex-end; gap:4px; height:70px; margin-top:6px; }
+  .bars .b { flex:1; min-width:6px; background:var(--teal-soft); border-radius:3px 3px 0 0; }
+  .bars .b > i { display:block; width:100%; background:var(--teal); border-radius:3px 3px 0 0; }
+  .bars-axis { display:flex; justify-content:space-between; margin-top:6px;
+               font-family:var(--mono); font-size:10px; color:var(--faint); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <span class="mark">OPS</span>
+  <h1>품질 콘솔</h1>
+  <span class="sp"></span>
+  <label class="lab" for="days" style="color:var(--deck-dim)">기간</label>
+  <select id="days">
+    <option value="7">7일</option>
+    <option value="14" selected>14일</option>
+    <option value="30">30일</option>
+  </select>
+  <a href="http://localhost:8787/" target="_blank" rel="noopener">마켓플레이스 ↗</a>
+</div>
+
+<div class="wrap">
+  <div id="gate" class="gate" hidden>
+    <h2>운영자 토큰</h2>
+    <p>파이프라인 품질과 서빙 품질을 한 화면에서 봅니다. 외부 마켓플레이스와 <b>다른 배포 단위</b>입니다.</p>
+    <div class="row">
+      <input type="password" id="token" placeholder="OPS_TOKEN" autocomplete="off" aria-label="운영자 토큰">
+      <button id="enter">열기</button>
+    </div>
+    <div class="err" id="gateErr"></div>
+  </div>
+
+  <div id="app" hidden>
+    <div id="banners"></div>
+
+    <h2 class="sec">파이프라인 품질 <span>수집·변환이 제 몫을 했나 · gold_*_slo_daily</span></h2>
+    <div class="kpis" id="pipeKpis"></div>
+    <div class="grid">
+      <div class="card wide">
+        <div class="hd"><h3>일자별 SLO</h3><p>정기런 통과 = 초록 · 수동 복구로만 살림 = 노랑 · 그날 데이터 없음 = 빨강</p></div>
+        <div class="bd" id="cal"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>도메인 커버리지</h3><p>SLO 마트를 가진 도메인 — 없는 곳은 품질을 잴 수 없다</p></div>
+        <div class="bd" id="domains"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>나쁜 날 상세</h3><p>정기런 실패·계약 위반이 있던 날만</p></div>
+        <div class="bd" id="badDays"></div>
+      </div>
+    </div>
+
+    <h2 class="sec">서빙 품질 <span>외부에 잘 나가고 있나 · 게이트웨이 _request_log</span></h2>
+    <div class="kpis" id="servKpis"></div>
+    <div class="grid">
+      <div class="card wide">
+        <div class="hd"><h3>일자별 호출</h3></div>
+        <div class="bd" id="daily"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>없어서 못 판 것</h3><p>404·400 은 그대로 로드맵이다</p></div>
+        <div class="bd" id="failures"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>조용한 0행</h3><p>200 인데 빈 응답 — 커버리지 구멍</p></div>
+        <div class="bd" id="empty"></div>
+      </div>
+      <div class="card wide">
+        <div class="hd"><h3>제품별 수요</h3><p>구경(preview)만 하고 떠나나, 실제로 쓰나(data)</p></div>
+        <div class="bd" id="products"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>라우트</h3></div>
+        <div class="bd" id="routes"></div>
+      </div>
+      <div class="card">
+        <div class="hd"><h3>키별 재방문</h3><p>키 해시 앞 8자만</p></div>
+        <div class="bd" id="keys"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const nf = new Intl.NumberFormat("ko-KR");
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const TK = "ops_token";                       // sessionStorage 전용 — URL 에 절대 싣지 않는다
+const token = () => sessionStorage.getItem(TK) || "";
+const md = (d) => (d || "").slice(5).replace("-", "/");
+
+function table(cols, rows, empty) {
+  if (!rows || !rows.length) return "<div class='empty'>" + empty + "</div>";
+  return "<table><thead><tr>" +
+    cols.map((c) => "<th" + (c.r ? " class='r'" : "") + ">" + esc(c.t) + "</th>").join("") +
+    "</tr></thead><tbody>" + rows.map((r) => "<tr>" +
+      cols.map((c) => "<td class='" + (c.name ? "name " : "") + (c.r ? "r" : "") + "'>" +
+        (c.get(r) ?? "—") + "</td>").join("") + "</tr>").join("") + "</tbody></table>";
+}
+const kpis = (el, items) => {
+  $(el).innerHTML = items.map(([lab, v, k, cls]) =>
+    "<div class='kpi'><div class='lab'>" + lab + "</div><div class='v" + (cls ? " " + cls : "") + "'>" +
+    v + "</div><div class='k'>" + esc(k) + "</div></div>").join("");
+};
+
+function render(d) {
+  // ── 배너: 샘플 데이터·누락 섹션은 화면 맨 위에서 밝힌다
+  const b = [];
+  if (d.meta.pipeline_is_sample)
+    b.push("<div class='banner warn'><b>파이프라인 값은 합성 샘플입니다</b> — 팀 D1 쓰기가 막혀 있어 " +
+           "실제 SLO 마트를 가져오지 못했습니다. 이 값으로 운영 판단을 하지 마세요.</div>");
+  if (d.meta.missing.includes("serving"))
+    b.push("<div class='banner info'>서빙 로그를 찾지 못했습니다 — 게이트웨이 D1 상태를 공유하도록 " +
+           "<code>--persist-to</code> 설정을 확인하세요.</div>");
+  if (d.meta.missing.includes("pipeline"))
+    b.push("<div class='banner info'>파이프라인 테이블이 없습니다 — <code>npm run seed</code> 를 먼저 실행하세요.</div>");
+  $("banners").innerHTML = b.join("");
+
+  // ── 파이프라인
+  const slo = d.pipeline.slo, doms = d.pipeline.domains;
+  const withSlo = doms.filter((x) => x.has_slo).length;
+  const passed = slo.filter((r) => r.scheduled_slo_passed).length;
+  const badDays = slo.filter((r) => !r.scheduled_slo_passed);
+  const viol = slo.reduce((a, r) => a + (r.violation_count || 0), 0);
+  kpis("pipeKpis", [
+    ["Scheduled SLO", slo.length ? Math.round(passed / slo.length * 100) + "%" : "—",
+     slo.length ? passed + "/" + slo.length + "일 정기런 통과" : "데이터 없음",
+     slo.length && passed / slo.length < 0.9 ? "bad" : "good"],
+    ["Domains", withSlo + " / " + doms.length, "SLO 마트 보유 도메인", withSlo < doms.length ? "bad" : "good"],
+    ["Violations", nf.format(viol), "계약 위반 누적", viol > 0 ? "bad" : "good"],
+    ["Bad days", nf.format(badDays.length), "정기런이 깨진 날", badDays.length > 0 ? "bad" : "good"],
+  ]);
+
+  $("cal").innerHTML = slo.length
+    ? "<div class='cal'>" + slo.map((r) => {
+        const cls = r.scheduled_slo_passed ? "pass" : (r.eod_slo_passed ? "partial" : "fail");
+        return "<div class='d " + cls + "' title='" + esc(r.event_date) + " · 커버리지 " +
+          (r.best_coverage_pct ?? "—") + "% · 실패 데이터셋 " + (r.failed_dataset_count ?? 0) + "'>" +
+          esc(md(r.event_date)) + "</div>";
+      }).join("") + "</div>" +
+      "<div class='cal-legend'><span><span class='pill ok'>초록</span> 정기런 통과</span>" +
+      "<span><span class='pill warn'>노랑</span> 수동 복구로 살림</span>" +
+      "<span><span class='pill bad'>빨강</span> 그날 데이터 없음</span></div>"
+    : "<div class='empty'>SLO 데이터가 없습니다</div>";
+
+  $("domains").innerHTML = table([
+    { t:"domain", get:(r) => esc(r.label) + " <span class='pill dim'>" + esc(r.domain) + "</span>" },
+    { t:"SLO", get:(r) => r.has_slo
+        ? "<span class='pill ok'>보유</span>"
+        : "<span class='pill warn'>" + esc(r.note || "미보유") + "</span>" },
+  ], doms, "도메인 등록부가 비었습니다");
+
+  $("badDays").innerHTML = table([
+    { t:"date", get:(r) => esc(r.event_date) },
+    { t:"eod", get:(r) => r.eod_slo_passed
+        ? "<span class='pill warn'>복구됨</span>" : "<span class='pill bad'>실패</span>" },
+    { t:"cov", r:true, get:(r) => (r.best_coverage_pct ?? "—") + "%" },
+    { t:"failed", r:true, get:(r) => r.failed_dataset_count },
+    { t:"viol", r:true, get:(r) => r.violation_count },
+  ], badDays, "정기런이 깨진 날이 없습니다");
+
+  // ── 서빙
+  const s = d.serving;
+  const calls = s.routes.reduce((a, r) => a + r.calls, 0);
+  const errs = s.routes.reduce((a, r) => a + (r.errors || 0), 0);
+  const emptyN = s.empty.reduce((a, r) => a + r.empty_responses, 0);
+  const errPct = calls ? errs / calls * 100 : 0;
+  kpis("servKpis", [
+    ["Calls", nf.format(calls), "최근 " + d.window_days + "일 총 호출", ""],
+    ["Error rate", errPct.toFixed(1) + "%", errs + "건 실패", errPct >= 5 ? "bad" : ""],
+    ["Empty 200", nf.format(emptyN), "조용한 0행 응답", emptyN > 0 ? "bad" : ""],
+    ["Active keys", nf.format(s.keys.length), "이 기간에 호출한 키", ""],
+  ]);
+
+  if (s.daily.length) {
+    const max = Math.max(...s.daily.map((x) => x.calls));
+    $("daily").innerHTML =
+      "<div class='bars'>" + s.daily.map((x) =>
+        "<div class='b' title='" + esc(x.day) + " · " + x.calls + "회'>" +
+        "<i style='height:" + Math.max(3, Math.round(x.calls / max * 70)) + "px'></i></div>").join("") + "</div>" +
+      "<div class='bars-axis'><span>" + esc(s.daily[0].day) + "</span><span>" +
+      esc(s.daily[s.daily.length - 1].day) + "</span></div>";
+  } else $("daily").innerHTML = "<div class='empty'>이 기간에 호출이 없습니다</div>";
+
+  $("failures").innerHTML = table([
+    { t:"status", get:(r) => "<span class='pill " + (r.status >= 500 ? "bad" : "warn") + "'>" + r.status + "</span>" },
+    { t:"route", get:(r) => esc(r.route) },
+    { t:"table", get:(r) => esc(r.table_name || "—"), name:true },
+    { t:"hits", r:true, get:(r) => r.hits },
+  ], s.failures, "실패 없음");
+
+  $("empty").innerHTML = table([
+    { t:"table", get:(r) => esc(r.table_name || "—"), name:true },
+    { t:"filters", get:(r) => esc(r.filters || "(없음)") },
+    { t:"count", r:true, get:(r) => r.empty_responses },
+  ], s.empty, "0행 응답 없음");
+
+  $("products").innerHTML = table([
+    { t:"table", get:(r) => esc(r.table_name), name:true },
+    { t:"preview", r:true, get:(r) => r.previews },
+    { t:"data", r:true, get:(r) => r.calls },
+    { t:"전환", r:true, get:(r) => r.previews ? Math.round(r.calls / r.previews * 100) + "%" : "—" },
+    { t:"avg rows", r:true, get:(r) => r.avg_rows },
+  ], s.products, "조회된 제품 없음");
+
+  $("routes").innerHTML = table([
+    { t:"route", get:(r) => esc(r.route), name:true },
+    { t:"calls", r:true, get:(r) => nf.format(r.calls) },
+    { t:"errors", r:true, get:(r) => r.errors ? "<span class='pill bad'>" + r.errors + "</span>" : "0" },
+    { t:"avg ms", r:true, get:(r) => r.avg_ms },
+  ], s.routes, "호출 없음");
+
+  $("keys").innerHTML = table([
+    { t:"key", get:(r) => esc(r.key_id), name:true },
+    { t:"calls", r:true, get:(r) => nf.format(r.calls) },
+    { t:"days", r:true, get:(r) => r.active_days > 1
+        ? "<span class='pill ok'>" + r.active_days + "</span>" : r.active_days },
+  ], s.keys, "인증 호출 없음");
+}
+
+async function load() {
+  let res;
+  try {
+    res = await fetch("/api/summary?days=" + $("days").value,
+                      { headers: { authorization: "Bearer " + token() } });
+  } catch { return showGate("서버에 닿지 못했습니다"); }
+  if (res.status === 401) { sessionStorage.removeItem(TK); return showGate("토큰이 맞지 않습니다"); }
+  if (!res.ok) {
+    const b = await res.json().catch(() => ({}));
+    return showGate(b.detail || ("불러오지 못했습니다 (HTTP " + res.status + ")"));
+  }
+  $("gate").hidden = true; $("app").hidden = false;
+  render(await res.json());
+}
+function showGate(msg) {
+  $("app").hidden = true; $("gate").hidden = false;
+  $("gateErr").textContent = msg || "";
+  $("token").focus();
+}
+$("enter").addEventListener("click", () => {
+  const t = $("token").value.trim();
+  if (!t) return showGate("토큰을 입력해주세요");
+  sessionStorage.setItem(TK, t);
+  $("token").value = "";
+  load();
+});
+$("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("enter").click(); });
+$("days").addEventListener("change", () => { if (token()) load(); });
+if (token()) load(); else showGate("");
+</script>
+</body>
+</html>
