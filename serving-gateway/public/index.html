@@ -189,15 +189,39 @@
   .hstep .dd { font-size:12.5px; color:var(--muted); margin-top:2px; }
   .hstep .dd code { font-family:var(--mono); font-size:11px; background:var(--bg);
                     border:1px solid var(--line); border-radius:4px; padding:1px 5px; }
-  .codebox { background:var(--deck); border:1px solid var(--deck-line); border-radius:10px;
-             overflow:hidden; box-shadow:var(--shadow-md); }
-  .codebox .bar { display:flex; align-items:center; gap:8px; padding:10px 15px;
-                  border-bottom:1px solid var(--deck-line); }
-  .codebox .bar i { width:7px; height:7px; border-radius:50%; background:#344054; }
-  .codebox pre { font-family:var(--mono); font-size:12px; line-height:1.75; color:#e4e9f1;
-                 padding:14px 16px; overflow-x:auto; white-space:pre; }
-  .codebox .c { color:#667085; } .codebox .g { color:#32d583; font-weight:700; }
-  .codebox .y { color:#fdb022; } .codebox .b { color:#84adff; }
+  /* 데모 — 질문에서 응답까지를 3박자로 보여준다. 화면의 명령이 실제로 호출되는 것과 같다 */
+  .demo { background:var(--deck); border:1px solid var(--deck-line); border-radius:10px;
+          overflow:hidden; box-shadow:var(--shadow-md); }
+  .demo .bar { display:flex; align-items:center; gap:8px; padding:10px 15px;
+               border-bottom:1px solid var(--deck-line); }
+  .demo .bar i { width:7px; height:7px; border-radius:50%; background:#344054; flex:none; }
+  .demo .qs { margin-left:auto; display:flex; gap:6px; }
+  .demo .qs button { width:7px; height:7px; padding:0; border:0; border-radius:50%;
+                     background:#344054; cursor:pointer; transition:background .15s; }
+  .demo .qs button[aria-selected="true"] { background:#84adff; }
+  .demo .body { padding:14px 16px 16px; }
+  .demo .q { font-size:13px; font-weight:600; color:#fff; line-height:1.45; }
+  .demo .cmd { font-family:var(--mono); font-size:11.5px; line-height:1.6; color:#e4e9f1;
+               margin-top:9px; word-break:break-all; min-height:2.2em; }
+  .demo .cmd .g { color:#32d583; font-weight:700; } .demo .cmd .b { color:#84adff; }
+  .demo .caret { display:inline-block; width:7px; height:12px; background:#84adff;
+                 vertical-align:-1px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  /* 좁은 화면에서 표가 본문을 밀지 않게 — 가로 스크롤은 표 안에서만 */
+  .demo .out { overflow-x:auto; }
+  .demo table { width:100%; border-collapse:collapse; margin-top:12px; font-size:11.5px; }
+  .demo th { text-align:left; font-family:var(--mono); font-size:9.5px; font-weight:600;
+             letter-spacing:.06em; text-transform:uppercase; color:var(--deck-dim);
+             padding:0 12px 6px 0; white-space:nowrap; }
+  .demo td { padding:6px 12px 6px 0; color:var(--deck-ink); border-top:1px solid var(--deck-line);
+             font-variant-numeric:tabular-nums; max-width:220px; overflow:hidden;
+             text-overflow:ellipsis; white-space:nowrap; }
+  .demo td.k { color:#fff; font-weight:600; }
+  .demo tr.in td { animation:rowin .3s ease both; }
+  @keyframes rowin { from { opacity:0; transform:translateY(5px); } }
+  .demo .fo { margin-top:11px; font-size:11px; color:var(--deck-dim); line-height:1.5; }
+  .demo .fo b { color:#84adff; font-weight:600; }
+  .demo .fo code { font-family:var(--mono); font-size:10.5px; }
 
   /* cta */
   .cta { margin:56px 0 0; background:var(--deck); border-radius:12px; padding:34px 38px;
@@ -319,19 +343,19 @@
           <div class="dd">REST · JSON 표준. 컬럼 필터와 기간(<code>from</code>/<code>to</code>) 조회를 지원합니다.</div>
         </div></div>
       </div>
-      <div class="codebox">
-        <div class="bar"><i aria-hidden="true"></i><span class="lab">Terminal</span></div>
-        <pre><span class="c"># 1. 샘플 먼저 — 키 없이</span>
-<span class="g">curl</span> <span class="b" id="cbOrigin1">…</span>/api/preview/gold_culture_event_schedule
-
-<span class="c"># 2. 키 발급</span>
-<span class="g">curl</span> -X POST <span class="b" id="cbOrigin2">…</span>/api/keys \
-  -H <span class="y">"content-type: application/json"</span> \
-  -d <span class="y">'{"email":"you@example.com"}'</span>
-
-<span class="c"># 3. 본 호출 — 이번 주말 문화행사</span>
-<span class="g">curl</span> -H <span class="y">"Authorization: Bearer ask_…"</span> \
-  <span class="b" id="cbOrigin3">…</span>/api/data/gold_culture_event_schedule?limit=100</pre>
+      <!-- 데모: 화면에 뜬 명령을 실제로 호출한다(무인증 /api/preview). 응답도 실물 -->
+      <div class="demo" id="demo">
+        <div class="bar">
+          <i aria-hidden="true"></i>
+          <span class="lab">질문 → 호출 → 응답</span>
+          <div class="qs" id="demoDots" role="tablist" aria-label="데모 시나리오"></div>
+        </div>
+        <div class="body">
+          <div class="q" id="demoQ">&nbsp;</div>
+          <div class="cmd" id="demoCmd"></div>
+          <div class="out" id="demoOut"></div>
+          <div class="fo" id="demoFoot">&nbsp;</div>
+        </div>
       </div>
     </div>
   </section>
@@ -404,7 +428,116 @@ function kstStamp(iso) {
   return new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 16).replace("T", " ") + " KST";
 }
 
-for (const id of ["cbOrigin1", "cbOrigin2", "cbOrigin3"]) $(id).textContent = location.origin;
+// ── 데모: 질문 → 호출 → 응답 3박자.
+// 화면에 타이핑되는 명령과 실제로 호출하는 주소가 같다(무인증 /api/preview). 응답도 실물이라
+// 픽스처가 비면 그대로 "표시할 행이 없습니다"가 뜬다 — 꾸며낸 행을 넣지 않는다.
+const DEMOS = [
+  { table: "gold_culture_event_schedule",
+    q: "이번에 서울에서 무슨 행사가 열리나?",
+    cols: [["title", "행사"], ["gu", "자치구"], ["event_start_date", "시작일"]],
+    foot: "행사 하나가 한 행. <b>기간 겹침</b> 조회를 지원해 '이번 주말에 열리는 것'을 한 번에 받습니다." },
+  { table: "gold_culture_activity_by_dong",
+    q: "어느 동네에 문화 활동이 몰리나?",
+    cols: [["admin_dong", "행정동"], ["event_date", "날짜"], ["activities_count", "활동"], ["free_events_count", "무료"]],
+    foot: "<b>admin_dong_code</b>(행안부 10자리)를 그대로 실어 인구·상권·교통 데이터에 바로 조인됩니다." },
+  { table: "gold_culture_boxoffice_daily",
+    q: "지금 잘 팔리는 공연은?",
+    cols: [["rank_no", "순위"], ["performance_name", "공연"], ["genre", "장르"]],
+    foot: "일자 × 순위 스냅샷이라 <b>순위 변동</b>을 시계열로 추적할 수 있습니다." },
+];
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const PREVIEW_CACHE = {};
+let demoRun = 0;          // 시나리오 전환 시 진행 중인 재생을 무효화하는 토큰
+let demoIdx = 0;
+let demoVisible = true;
+
+async function previewRows(table) {
+  if (!PREVIEW_CACHE[table]) {
+    PREVIEW_CACHE[table] = fetch("/api/preview/" + table)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((j) => j.rows || [])
+      .catch(() => null);
+  }
+  return PREVIEW_CACHE[table];
+}
+
+function demoDots() {
+  $("demoDots").innerHTML = DEMOS.map((d, i) =>
+    "<button role='tab' aria-selected='" + (i === demoIdx) + "' aria-label='" + esc(d.q) + "'></button>").join("");
+  [...$("demoDots").children].forEach((b, i) => (b.onclick = () => playDemo(i, true)));
+}
+
+async function playDemo(i, manual) {
+  const run = ++demoRun;
+  demoIdx = i;
+  const d = DEMOS[i];
+  demoDots();
+  $("demoQ").textContent = d.q;
+  $("demoOut").innerHTML = "";
+  $("demoFoot").innerHTML = "&nbsp;";
+
+  const cmd = "curl " + location.origin + "/api/preview/" + d.table;
+  const paint = (n) => {
+    const shown = cmd.slice(0, n);
+    $("demoCmd").innerHTML =
+      "<span class='g'>" + esc(shown.slice(0, 4)) + "</span><span class='b'>" + esc(shown.slice(4)) + "</span>" +
+      (n < cmd.length ? "<span class='caret'></span>" : "");
+  };
+
+  if (REDUCED) paint(cmd.length);
+  else {
+    for (let n = 0; n <= cmd.length; n += 2) {
+      if (run !== demoRun) return;
+      paint(n);
+      await sleep(11);
+    }
+    paint(cmd.length);
+    await sleep(220);
+  }
+
+  const rows = await previewRows(d.table);
+  if (run !== demoRun) return;
+  if (!rows) { $("demoFoot").textContent = "응답을 받지 못했습니다 — 서버 상태를 확인해주세요."; return; }
+  if (!rows.length) { $("demoFoot").textContent = "이 제품에 표시할 행이 없습니다."; return; }
+
+  const show = rows.slice(0, 3);
+  $("demoOut").innerHTML =
+    "<table><thead><tr>" + d.cols.map((c) => "<th>" + esc(c[1]) + "</th>").join("") +
+    "</tr></thead><tbody>" + show.map((r) =>
+      "<tr><td class='k'>" + esc(r[d.cols[0][0]] ?? "—") + "</td>" +
+      d.cols.slice(1).map((c) => "<td>" + esc(r[c[0]] ?? "—") + "</td>").join("") + "</tr>").join("") +
+    "</tbody></table>";
+
+  if (!REDUCED) {
+    const trs = $("demoOut").querySelectorAll("tbody tr");
+    for (const [n, tr] of [...trs].entries()) {
+      tr.style.visibility = "hidden";
+      setTimeout(() => { tr.style.visibility = ""; tr.classList.add("in"); }, n * 110);
+    }
+    await sleep(trs.length * 110);
+  }
+  if (run !== demoRun) return;
+  $("demoFoot").innerHTML = d.foot;
+
+  if (manual || REDUCED) return;   // 직접 고른 뒤에는 자동 전환하지 않는다
+  await sleep(4200);
+  if (run !== demoRun || !demoVisible) return;
+  playDemo((i + 1) % DEMOS.length);
+}
+
+function bootDemo() {
+  demoDots();
+  // 화면 밖이거나 탭이 가려지면 멈춘다 — 안 보는 애니메이션에 호출을 쓰지 않는다
+  document.addEventListener("visibilitychange", () => { demoVisible = !document.hidden; });
+  new IntersectionObserver((es) => {
+    const on = es[0].isIntersecting;
+    if (on && !demoVisible) { demoVisible = true; playDemo(demoIdx); }
+    demoVisible = on;
+  }, { threshold: 0.25 }).observe($("demo"));
+  playDemo(0);
+}
 
 $("heroSearch").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -473,6 +606,7 @@ async function bootCatalog() {
 }
 
 bootCatalog();
+bootDemo();
 </script>
 </body>
 </html>

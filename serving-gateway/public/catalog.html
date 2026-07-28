@@ -157,14 +157,25 @@
   .prow .act { text-align:right; }
   .pdetail { display:none; padding:16px 18px 20px; background:#f9fafb; border-bottom:1px solid var(--line); }
   .pdetail.open { display:block; }
-  .pdetail .cols { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; margin:10px 0 14px; }
-  @media (max-width:760px){ .pdetail .cols { grid-template-columns:1fr; }
+  /* 스키마 표 — 컬럼명 · 타입 · 설명. 설명이 붙으면서 2열 격자로는 줄바꿈이 많아져 한 줄 = 한 컬럼 */
+  .pdetail .cols { margin:10px 0 14px; border-top:1px solid var(--line); }
+  @media (max-width:760px){
     .phead,.prow { grid-template-columns:1fr 90px; }
     .prow .q,.prow .n,.phead span:nth-child(2),.phead span:nth-child(3),.phead span:nth-child(4){ display:none; } }
-  .pdetail .col-item { display:flex; justify-content:space-between; gap:12px; padding:5px 0;
-                       border-bottom:1px solid var(--line); font-size:12px; }
-  .pdetail .col-item code { font-family:var(--mono); color:var(--ink); }
+  .pdetail .col-item { display:grid; grid-template-columns:minmax(170px,230px) 76px 1fr; gap:6px 14px;
+                       align-items:baseline; padding:7px 0; border-bottom:1px solid var(--line); font-size:12px; }
+  .pdetail .col-item code { font-family:var(--mono); color:var(--ink); word-break:break-all; }
   .pdetail .col-item .ty { color:var(--faint); font-family:var(--mono); font-size:10.5px; }
+  .pdetail .col-item .ds { color:var(--muted); font-size:11.5px; line-height:1.5; }
+  .pdetail .col-item .ds.none { color:var(--faint); font-style:italic; }
+  /* 조인 키는 다른 데이터와 붙이는 지점이라 눈에 띄어야 한다 */
+  .pdetail .col-item .kk { font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.06em;
+                           color:var(--accent-deep); background:var(--accent-soft); border:1px solid var(--accent-line);
+                           border-radius:3px; padding:0 4px; margin-left:6px; vertical-align:1px; }
+  @media (max-width:760px){
+    .pdetail .col-item { grid-template-columns:1fr auto; }
+    .pdetail .col-item .ds { grid-column:1/-1; }
+  }
   .endpoint { font-family:var(--mono); font-size:12px; background:#0c111d; color:#e4e9f1;
               border-radius:6px; padding:10px 13px; overflow-x:auto; white-space:pre;
               border:1px solid #1d2939; }
@@ -317,6 +328,14 @@ let query = "";
 
 const domainOf = (p) => (p.product_id || p.name || "").replace(/^gold_/, "").split("_")[0];
 const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+
+// 컬럼 설명 — 정본은 ASAC-DBT 계약(yml). _catalog.columns 는 name·type 만 실어 오므로
+// fixtures/build_column_docs.py 가 같은 계약에서 뽑아 둔다(손으로 옮긴 사전이 아니다).
+// 계약 v1.2 에 컬럼 설명이 들어가면 이 파일과 생성기는 지운다.
+let COLUMN_DOCS = {};
+// 조인 키 표시 — 이 데이터를 남의 데이터에 붙이는 지점
+const JOIN_KEY = /^(admin_dong_code|gu_code|stat_region_cd)$/;
 
 // 앵커 이동 — 브라우저의 로드 시점 점프에 맡길 수 없다. 목록·시작하기가 JS 로 렌더되면서
 // 앵커 위쪽 높이가 바뀌기 때문(홈 헤더의 /catalog#playground·#auth 진입이 맨 위에 떨어지던 원인).
@@ -336,6 +355,8 @@ function goHash(hash, behavior) {
 async function boot() {
   const res = await fetch("/api/catalog");
   PRODUCTS = (await res.json()).products || [];
+  // 설명이 없어도 카탈로그는 그대로 뜬다 — 부가 정보라 실패를 삼킨다
+  try { COLUMN_DOCS = await (await fetch("/column-docs.json")).json(); } catch { COLUMN_DOCS = {}; }
   const q0 = new URLSearchParams(location.search).get("q");
   if (q0) { $("q").value = q0; query = q0.trim().toLowerCase(); }
   renderNav(); renderStart(); renderList(); renderSelect();
@@ -423,8 +444,14 @@ function renderList() {
       (p.time_axis ? "&from=2026-07-01&to=2026-07-31" : "") + "</div>" +
       "<div class='dhead' style='margin-top:12px'>스키마 · " + cols.length + "컬럼" + (d.unit ? " · 그레인: " + d.unit : "") +
       (p.exported_at ? " · 마지막 갱신 " + fmtFresh(p.exported_at) : "") + "</div>" +
-      "<div class='cols'>" + cols.map((c) =>
-        "<div class='col-item'><code>" + c.name + "</code><span class='ty'>" + c.type + "</span></div>").join("") + "</div>" +
+      "<div class='cols'>" + cols.map((c) => {
+        const ds = (COLUMN_DOCS[p.name] || {})[c.name];
+        return "<div class='col-item'><span><code>" + c.name + "</code>" +
+          (JOIN_KEY.test(c.name) ? "<span class='kk'>JOIN</span>" : "") + "</span>" +
+          "<span class='ty'>" + c.type + "</span>" +
+          (ds ? "<span class='ds'>" + esc(ds) + "</span>"
+              : "<span class='ds none'>설명 준비 중</span>") + "</div>";
+      }).join("") + "</div>" +
       "<div style='margin-top:12px'><button class='btn-g' data-pv='" + p.name + "'>샘플 5행 미리보기 — 키 없이</button></div>" +
       "<div class='table-scroll' data-pvwrap style='display:none;margin-top:8px'><table class='data'></table></div>";
     row.addEventListener("click", (e) => {
