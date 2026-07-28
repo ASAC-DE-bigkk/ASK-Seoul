@@ -135,7 +135,8 @@ async function handleCatalog(env) {
 
 // 무인증 샘플 미리보기 — 고정 5행, 필터 없음, 쿼터 무과금 ("물건을 먼저 보여준다")
 const PREVIEW_ROWS = 5;
-async function handlePreview(env, table) {
+async function handlePreview(env, table, trace = {}) {
+  trace.table = table;
   if (!/^[a-z0-9_]+$/.test(table))
     return problem(400, "invalid table", "테이블 이름 형식이 아니다");
   const meta = await env.DB.prepare("SELECT name, time_axis FROM _catalog WHERE name = ?")
@@ -146,6 +147,7 @@ async function handlePreview(env, table) {
   const { results } = await env.DB.prepare(
     `SELECT * FROM "${table}"${order} LIMIT ${PREVIEW_ROWS}`
   ).all();
+  trace.rows = results.length;
   return json({ table, preview: true, row_count: results.length, rows: results });
 }
 
@@ -203,7 +205,8 @@ async function handleShowcase(env) {
   );
 }
 
-async function handleData(env, table, params, keyRow) {
+async function handleData(env, table, params, keyRow, trace = {}) {
+  trace.table = table;
   if (!/^[a-z0-9_]+$/.test(table))
     return problem(400, "invalid table", "테이블 이름 형식이 아니다");
   const meta = await env.DB.prepare("SELECT * FROM _catalog WHERE name = ?").bind(table).first();
@@ -219,6 +222,8 @@ async function handleData(env, table, params, keyRow) {
       return problem(400, "unknown filter", `'${k}' 컬럼 없음 — 사용 가능: ${[...colSet].join(", ")}`);
     where.push(`"${k}" = ?`);
     binds.push(v);
+    // 필터는 컬럼명만 기록한다 — 어떤 축으로 자르는지가 알고 싶은 것이고, 값은 남길 이유가 없다
+    trace.filterCols = (trace.filterCols || []).concat(k);
   }
   if (params.get("from") || params.get("to")) {
     if (!meta.time_axis)
@@ -235,6 +240,7 @@ async function handleData(env, table, params, keyRow) {
 
   const sql = `SELECT * FROM "${table}"${where.length ? " WHERE " + where.join(" AND ") : ""} LIMIT ${limit}`;
   const { results } = await env.DB.prepare(sql).bind(...binds).all();
+  trace.rows = results.length;
   return json({
     table,
     row_count: results.length,
@@ -259,10 +265,62 @@ async function handleMe(env, keyRow) {
   });
 }
 
+// 요청 로그 — 무엇이 실제로 쓰이는지 재는 유일한 근거. 실패해도 서빙을 깨뜨리지 않는다.
+const LOG_RETENTION_DAYS = 30;
+const LOG_SWEEP_RATE = 0.02;  // 크론 없이, 로그 100건당 ~2회 낡은 행 청소
+
+async function logRequest(env, trace) {
+  try {
+    await env.DB.prepare(
+      "INSERT INTO _request_log (ts, route, table_name, status, key_hash, filters, row_count, ms) " +
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(
+      new Date().toISOString(), trace.route, trace.table ?? null, trace.status,
+      trace.keyHash ?? null, trace.filterCols ? trace.filterCols.join(",") : null,
+      trace.rows ?? null, trace.ms
+    ).run();
+    if (Math.random() < LOG_SWEEP_RATE) {
+      const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 86400000).toISOString();
+      await env.DB.prepare("DELETE FROM _request_log WHERE ts < ?").bind(cutoff).run();
+    }
+  } catch {
+    // 관측 실패가 응답에 영향을 주면 안 된다 — 조용히 버린다
+  }
+}
+
+async function route(request, env, url, trace) {
+  const path = url.pathname;
+
+  if (path === "/api/keys" && request.method === "POST") {
+    trace.route = "keys";
+    return issueKey(env, request);
+  }
+  if (request.method !== "GET") return problem(405, "method not allowed", "조회 전용 API");
+  if (path === "/api/catalog") { trace.route = "catalog"; return handleCatalog(env); }
+  if (path === "/api/showcase") { trace.route = "showcase"; return handleShowcase(env); }
+
+  const previewMatch = path.match(/^\/api\/preview\/([^/]+)$/);
+  if (previewMatch) {
+    trace.route = "preview";
+    return handlePreview(env, decodeURIComponent(previewMatch[1]), trace);
+  }
+
+  const dataMatch = path.match(/^\/api\/data\/([^/]+)$/);
+  if (dataMatch || path === "/api/me") {
+    trace.route = dataMatch ? "data" : "me";
+    const { keyRow, error } = await authenticate(env, request);
+    if (error) return error;
+    trace.keyHash = keyRow.key_hash;
+    if (path === "/api/me") return handleMe(env, keyRow);
+    return handleData(env, decodeURIComponent(dataMatch[1]), url.searchParams, keyRow, trace);
+  }
+
+  return problem(404, "not found", "GET /api/catalog · /api/data/<table> · /api/me, POST /api/keys");
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const path = url.pathname;
 
     if (request.method === "OPTIONS")
       return new Response(null, {
@@ -274,22 +332,17 @@ export default {
         },
       });
 
-    if (path === "/api/keys" && request.method === "POST") return issueKey(env, request);
-    if (request.method !== "GET") return problem(405, "method not allowed", "조회 전용 API");
-    if (path === "/api/catalog") return handleCatalog(env);
-    if (path === "/api/showcase") return handleShowcase(env);
+    const started = Date.now();
+    const trace = { route: null };
+    const res = await route(request, env, url, trace);
 
-    const previewMatch = path.match(/^\/api\/preview\/([^/]+)$/);
-    if (previewMatch) return handlePreview(env, decodeURIComponent(previewMatch[1]));
-
-    const dataMatch = path.match(/^\/api\/data\/([^/]+)$/);
-    if (dataMatch || path === "/api/me") {
-      const { keyRow, error } = await authenticate(env, request);
-      if (error) return error;
-      if (path === "/api/me") return handleMe(env, keyRow);
-      return handleData(env, decodeURIComponent(dataMatch[1]), url.searchParams, keyRow);
+    // 라우트가 정해진 API 요청만 기록한다 (정적 자산·404 잡음 제외)
+    if (trace.route) {
+      trace.status = res.status;
+      trace.ms = Date.now() - started;
+      const write = logRequest(env, trace);
+      if (ctx && ctx.waitUntil) ctx.waitUntil(write);  // 응답을 붙잡지 않는다
     }
-
-    return problem(404, "not found", "GET /api/catalog · /api/data/<table> · /api/me, POST /api/keys");
+    return res;
   },
 };
