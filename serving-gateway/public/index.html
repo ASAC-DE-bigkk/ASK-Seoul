@@ -3,300 +3,304 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ASK: SEOUL 데이터 플랫폼</title>
+<title>ASK: SEOUL — 서울 데이터 API 허브</title>
 <style>
   :root {
-    --bg:#f7f8fa; --panel:#ffffff; --sidebar:#101828; --sidebar-hi:#1d2939;
-    --sidebar-ink:#d0d5dd; --sidebar-dim:#667085;
+    --bg:#f7f8fa; --panel:#ffffff; --hero:#101828; --hero-hi:#1d2939;
+    --hero-ink:#d0d5dd; --hero-dim:#98a2b3;
     --ink:#101828; --muted:#475467; --faint:#98a2b3; --line:#eaecf0; --line-strong:#d0d5dd;
     --accent:#155eef; --accent-deep:#1849a9; --accent-soft:#eff4ff; --accent-line:#b2ccff;
     --green-soft:#ecfdf3; --green-ink:#067647;
-    --amber-soft:#fffaeb; --amber-ink:#b54708; --red-soft:#fef3f2; --red-ink:#b42318;
     --shadow-xs:0 1px 2px rgba(16,24,40,.05);
     --shadow-sm:0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.04);
+    --shadow-md:0 4px 12px rgba(16,24,40,.10);
     --mono:ui-monospace,'Cascadia Code',Consolas,monospace;
   }
   * { box-sizing:border-box; margin:0; }
   html { scroll-behavior:smooth; }
   body { font-family:'Pretendard Variable',Pretendard,system-ui,-apple-system,'Noto Sans KR',sans-serif;
-         background:var(--bg); color:var(--ink); font-size:13.5px; line-height:1.55; word-break:keep-all;
+         background:var(--bg); color:var(--ink); font-size:14px; line-height:1.6; word-break:keep-all;
          -webkit-font-smoothing:antialiased; }
-  .shell { display:grid; grid-template-columns:248px 1fr; min-height:100vh; }
-  @media (max-width:860px){ .shell { grid-template-columns:1fr; } .side { display:none; } }
+  a { color:inherit; text-decoration:none; }
+  .wrap { max-width:1080px; margin:0 auto; padding:0 24px; }
 
-  .side { background:var(--sidebar); color:var(--sidebar-ink); padding:16px 0 0; position:sticky; top:0;
-          height:100vh; overflow-y:auto; display:flex; flex-direction:column;
-          border-right:1px solid rgba(255,255,255,.06); }
-  .side .brand { display:flex; align-items:center; gap:10px; padding:6px 18px 16px;
-                 border-bottom:1px solid rgba(255,255,255,.07); margin-bottom:8px; }
-  .side .brand .logo { width:30px; height:30px; flex:none; border-radius:7px;
-                       background:linear-gradient(135deg,#155eef,#12b0e8);
-                       display:flex; align-items:center; justify-content:center;
-                       font-weight:800; font-size:13px; color:#fff; letter-spacing:-.02em; }
-  .side .brand .nm { font-weight:700; font-size:13.5px; color:#fff; letter-spacing:-.01em; line-height:1.25; }
-  .side .brand .sub { display:block; font-weight:500; font-size:10.5px; color:var(--sidebar-dim);
-                      letter-spacing:.02em; }
-  .side .group { padding:16px 18px 6px; font-size:10px; font-weight:700; letter-spacing:.1em;
-                 color:var(--sidebar-dim); }
-  .dnav { list-style:none; padding:0 8px; }
-  .dnav li { display:flex; align-items:center; gap:9px; padding:7px 12px; font-size:12.5px; cursor:pointer;
-             border-radius:6px; margin-bottom:1px; font-weight:500; color:var(--sidebar-ink); }
-  .dnav li:hover { background:rgba(255,255,255,.05); color:#fff; }
-  .dnav li.active { background:var(--sidebar-hi); color:#fff; font-weight:600;
-                    box-shadow:inset 2px 0 0 var(--accent); }
-  .dnav li.soon { cursor:default; color:var(--sidebar-dim); }
-  .dnav li.soon:hover { background:none; color:var(--sidebar-dim); }
-  .dnav .dot { width:6px; height:6px; border-radius:50%; background:#12b76a; flex:none; }
-  .dnav li.soon .dot { background:#344054; }
-  .dnav .cnt { margin-left:auto; font-size:10.5px; font-variant-numeric:tabular-nums;
-               background:rgba(255,255,255,.08); border-radius:4px; padding:1px 6px; color:var(--sidebar-ink); }
-  .dnav .soon-tag { margin-left:auto; font-size:9.5px; padding:1px 6px; border-radius:4px;
-                    background:rgba(255,255,255,.06); color:var(--sidebar-dim); letter-spacing:.02em; }
-  .side .foot { margin-top:auto; padding:14px 18px 16px; font-size:10.5px; color:var(--sidebar-dim);
-                line-height:1.9; border-top:1px solid rgba(255,255,255,.07); }
-  .side .foot b { color:var(--sidebar-ink); font-weight:600; }
-  .side .foot code { font-family:var(--mono); font-size:10px; }
-
-  .main { min-width:0; }
-  .topbar { background:var(--panel); border-bottom:1px solid var(--line); padding:0 28px; height:52px;
-            display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:9; }
-  .topbar h1 { font-size:14px; font-weight:600; letter-spacing:-.01em; padding-right:16px;
-               border-right:1px solid var(--line); }
-  .search { flex:1; max-width:400px; position:relative; }
-  .search input { width:100%; padding:7px 12px 7px 32px; border:1px solid var(--line-strong); border-radius:6px;
-                  font:inherit; font-size:13px; background:var(--panel); outline:none;
-                  transition:border-color .12s, box-shadow .12s; }
-  .search input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
-  .search .ico { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:var(--faint);
-                 display:flex; }
-  .spacer { flex:1; }
+  /* ─── top nav ─── */
+  .nav { background:var(--hero); border-bottom:1px solid rgba(255,255,255,.07);
+         position:sticky; top:0; z-index:20; }
+  .nav-in { display:flex; align-items:center; gap:22px; height:56px; }
+  .brand { display:flex; align-items:center; gap:10px; cursor:default; }
+  .brand .logo { width:30px; height:30px; border-radius:7px;
+                 background:linear-gradient(135deg,#155eef,#12b0e8);
+                 display:flex; align-items:center; justify-content:center;
+                 font-weight:800; font-size:13px; color:#fff; }
+  .brand .nm { font-weight:700; font-size:14px; color:#fff; letter-spacing:-.01em; line-height:1.2; }
+  .brand .sub { display:block; font-weight:500; font-size:10px; color:var(--hero-dim); letter-spacing:.03em; }
+  .nav-links { display:flex; gap:4px; margin-left:8px; }
+  .nav-links a { font-size:13px; font-weight:500; color:var(--hero-ink); padding:6px 12px; border-radius:6px; }
+  .nav-links a:hover { background:rgba(255,255,255,.06); color:#fff; }
+  .nav-links a.active { color:#fff; font-weight:600; background:var(--hero-hi); }
+  .nav .spacer { flex:1; }
   .env-pill { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
-              padding:3px 10px; border-radius:6px; border:1px solid var(--line-strong);
-              color:var(--muted); background:var(--panel); white-space:nowrap; letter-spacing:.01em; }
+              padding:3px 10px; border-radius:6px; border:1px solid rgba(255,255,255,.15);
+              color:var(--hero-ink); white-space:nowrap; }
   .env-pill i { width:6px; height:6px; border-radius:50%; background:#f79009; }
-  .keychip { font-family:var(--mono); font-size:11px; padding:4px 10px; border-radius:6px;
-             border:1px solid var(--line-strong); color:var(--muted); cursor:pointer; background:var(--panel); }
-  .keychip.on { border-color:var(--accent-line); background:var(--accent-soft); color:var(--accent-deep); font-weight:600; }
+  .nav-cta { font-size:12.5px; font-weight:600; color:#fff; background:var(--accent);
+             padding:7px 14px; border-radius:6px; }
+  .nav-cta:hover { background:var(--accent-deep); }
+  @media (max-width:760px){ .nav-links, .env-pill { display:none; } }
 
-  .content { padding:24px 28px 64px; max-width:1160px; }
-  .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
-  .step { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px;
-          display:flex; gap:12px; align-items:flex-start; cursor:pointer; box-shadow:var(--shadow-xs);
-          transition:border-color .12s, box-shadow .12s; }
-  .step:hover { border-color:var(--accent-line); box-shadow:var(--shadow-sm); }
-  .step .num { width:24px; height:24px; flex:none; border-radius:6px; background:var(--accent-soft);
-               color:var(--accent-deep); font-weight:700; font-size:12px; display:flex;
-               align-items:center; justify-content:center; margin-top:1px;
-               font-variant-numeric:tabular-nums; }
-  .step .tt { font-weight:600; font-size:13px; }
-  .step .dd { font-size:12px; color:var(--muted); margin-top:1px; }
-  .terms { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 24px; }
-  .terms span { font-size:11px; font-weight:500; color:var(--muted); background:var(--panel);
-                border:1px solid var(--line); border-radius:5px; padding:3px 9px; }
-  .terms span b { color:var(--ink); font-weight:600; }
+  /* ─── hero ─── */
+  .hero { background:var(--hero); color:#fff; padding:64px 0 72px;
+          background-image:radial-gradient(720px 300px at 78% -10%, rgba(21,94,239,.22), transparent),
+                           radial-gradient(500px 260px at 12% 110%, rgba(18,176,232,.10), transparent); }
+  .hero .eyebrow { font-size:11px; font-weight:700; letter-spacing:.14em; color:#84adff; margin-bottom:14px; }
+  .hero h1 { font-size:clamp(26px, 4.4vw, 40px); font-weight:800; letter-spacing:-.02em;
+             line-height:1.25; max-width:640px; }
+  .hero .sub { font-size:15px; color:var(--hero-ink); margin-top:14px; max-width:560px; }
+  .hero .sub b { color:#fff; font-weight:600; }
 
-  .auth { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:18px 20px;
-          margin-bottom:28px; display:grid; grid-template-columns:1fr 1fr; gap:24px;
-          box-shadow:var(--shadow-xs); }
-  @media (max-width:760px){ .auth { grid-template-columns:1fr; } }
-  .auth h3 { font-size:12.5px; font-weight:600; margin-bottom:9px; color:var(--ink); }
-  .row { display:flex; gap:8px; }
-  input, select { font:inherit; font-size:13px; color:var(--ink); background:var(--panel);
-                  border:1px solid var(--line-strong); border-radius:6px; padding:7px 11px; outline:none;
-                  transition:border-color .12s, box-shadow .12s; }
-  input:focus, select:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
-  .row input { flex:1; min-width:0; }
-  button { font:inherit; font-size:13px; font-weight:600; border:0; border-radius:6px; padding:7px 14px;
-           cursor:pointer; transition:background .12s, border-color .12s; }
-  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  .btn-p { background:var(--accent); color:#fff; box-shadow:var(--shadow-xs); }
-  .btn-p:hover { background:var(--accent-deep); }
-  .btn-g { background:var(--panel); color:var(--muted); border:1px solid var(--line-strong);
-           box-shadow:var(--shadow-xs); }
-  .btn-g:hover { border-color:var(--accent); color:var(--accent-deep); }
-  .btn-sm { padding:4px 10px; font-size:12px; }
-  .reveal { display:none; margin-top:10px; border:1px solid var(--accent-line); background:var(--accent-soft);
-            border-radius:6px; padding:10px 12px; }
-  .reveal .k { display:flex; gap:8px; align-items:center; }
-  .reveal code { font-family:var(--mono); font-size:12px; font-weight:700; word-break:break-all; flex:1;
-                 color:var(--accent-deep); }
-  .reveal .warn { font-size:11.5px; color:var(--red-ink); margin-top:6px; }
-  .ferr { font-size:12.5px; color:var(--red-ink); margin-top:8px; line-height:1.5; }
-  .usage .bar { height:6px; background:var(--bg); border:1px solid var(--line); border-radius:999px;
-                overflow:hidden; margin-top:10px; }
-  .usage .fill { height:100%; width:0%; background:var(--accent); transition:width .3s; }
-  .usage .txt { display:flex; justify-content:space-between; font-size:11.5px; color:var(--muted);
-                margin-top:5px; font-variant-numeric:tabular-nums; }
+  .search-hero { margin-top:28px; max-width:620px; display:flex; gap:10px; }
+  .search-hero .box { flex:1; position:relative; }
+  .search-hero input { width:100%; font:inherit; font-size:14.5px; padding:13px 16px 13px 42px;
+                       border-radius:8px; border:1px solid rgba(255,255,255,.14);
+                       background:rgba(255,255,255,.06); color:#fff; outline:none;
+                       transition:border-color .12s, background .12s, box-shadow .12s; }
+  .search-hero input::placeholder { color:var(--hero-dim); }
+  .search-hero input:focus { border-color:var(--accent); background:rgba(255,255,255,.09);
+                             box-shadow:0 0 0 3px rgba(21,94,239,.25); }
+  .search-hero .ico { position:absolute; left:14px; top:50%; transform:translateY(-50%);
+                      color:var(--hero-dim); display:flex; }
+  .search-hero button { font:inherit; font-size:14px; font-weight:600; color:#fff; background:var(--accent);
+                        border:0; border-radius:8px; padding:0 22px; cursor:pointer; }
+  .search-hero button:hover { background:var(--accent-deep); }
+  .hot { display:flex; gap:7px; flex-wrap:wrap; margin-top:14px; align-items:center; }
+  .hot .lbl { font-size:11.5px; color:var(--hero-dim); }
+  .hot a { font-size:11.5px; font-weight:500; color:var(--hero-ink); padding:3px 10px;
+           border:1px solid rgba(255,255,255,.14); border-radius:999px; }
+  .hot a:hover { border-color:var(--accent); color:#fff; }
 
-  .sec-title { display:flex; align-items:baseline; gap:10px; margin:4px 0 10px; }
-  .sec-title h2 { font-size:15px; font-weight:700; letter-spacing:-.01em; }
-  .sec-title .hint { font-size:11.5px; color:var(--faint); }
+  /* ─── stats strip ─── */
+  .stats { margin-top:-30px; position:relative; z-index:2; }
+  .stats-in { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+  @media (max-width:760px){ .stats-in { grid-template-columns:repeat(2,1fr); } }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;
+          box-shadow:var(--shadow-sm); }
+  .stat .v { font-size:22px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .stat .k { font-size:11.5px; color:var(--muted); margin-top:2px; }
 
-  .plist { background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;
-           margin-bottom:30px; box-shadow:var(--shadow-xs); }
-  .phead, .prow { display:grid; grid-template-columns:minmax(220px,1.4fr) minmax(200px,2fr) 110px 110px 90px;
-                  gap:14px; align-items:center; padding:10px 18px; }
-  .phead { background:#f9fafb; border-bottom:1px solid var(--line); font-size:10.5px; font-weight:600;
-           letter-spacing:.06em; color:var(--muted); }
-  .prow { border-bottom:1px solid var(--line); cursor:pointer; transition:background .1s; }
-  .prow:hover { background:#f9fafb; }
-  .prow:last-child, .pdetail:last-child { border-bottom:0; }
-  .prow .t { font-weight:600; font-size:13px; }
-  .prow .t small { display:block; font-family:var(--mono); font-size:10.5px; font-weight:400;
-                   color:var(--faint); margin-top:1px; }
-  .prow .q { font-size:12.5px; color:var(--muted); }
-  .prow .n { font-size:12.5px; font-variant-numeric:tabular-nums; text-align:right; }
-  .badge { font-family:var(--mono); font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:4px;
-           white-space:nowrap; background:var(--accent-soft); color:var(--accent-deep);
-           border:1px solid var(--accent-line); justify-self:start; }
-  .badge.dim { background:var(--panel); color:var(--muted); border:1px solid var(--line-strong);
-               font-family:inherit; }
-  .prow .act { text-align:right; }
-  .pdetail { display:none; padding:16px 18px 20px; background:#f9fafb; border-bottom:1px solid var(--line); }
-  .pdetail.open { display:block; }
-  .pdetail .cols { display:grid; grid-template-columns:1fr 1fr; gap:0 28px; margin:10px 0 14px; }
-  @media (max-width:760px){ .pdetail .cols { grid-template-columns:1fr; }
-    .phead,.prow { grid-template-columns:1fr 90px; }
-    .prow .q,.prow .n,.phead span:nth-child(2),.phead span:nth-child(3),.phead span:nth-child(4){ display:none; } }
-  .pdetail .col-item { display:flex; justify-content:space-between; gap:12px; padding:5px 0;
-                       border-bottom:1px solid var(--line); font-size:12px; }
-  .pdetail .col-item code { font-family:var(--mono); color:var(--ink); }
-  .pdetail .col-item .ty { color:var(--faint); font-family:var(--mono); font-size:10.5px; }
-  .endpoint { font-family:var(--mono); font-size:12px; background:#0c111d; color:#e4e9f1;
-              border-radius:6px; padding:10px 13px; overflow-x:auto; white-space:pre;
-              border:1px solid #1d2939; }
-  .endpoint .m { color:#32d583; font-weight:700; }
-  .pdetail .dhead { font-size:10.5px; font-weight:600; letter-spacing:.06em; color:var(--muted);
-                    margin-bottom:5px; }
+  /* ─── sections ─── */
+  section { padding:52px 0 0; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+  .sec-head h2 { font-size:19px; font-weight:700; letter-spacing:-.01em; }
+  .sec-head .hint { font-size:12px; color:var(--faint); }
+  .sec-head .more { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--accent-deep); }
+  .sec-head .more:hover { text-decoration:underline; text-underline-offset:3px; }
 
-  .play { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:20px;
-          box-shadow:var(--shadow-xs); }
-  .play-grid { display:grid; grid-template-columns:240px 1fr; gap:24px; }
-  @media (max-width:760px){ .play-grid { grid-template-columns:1fr; } }
-  .field { margin-bottom:12px; }
-  .field label { display:block; font-size:10.5px; font-weight:600; letter-spacing:.05em;
-                 color:var(--muted); margin-bottom:5px; }
-  .field input, .field select { width:100%; }
-  .resp-head { display:flex; align-items:center; gap:10px; margin:14px 0 8px; }
-  .status { font-family:var(--mono); font-size:11.5px; font-weight:700; padding:2px 9px; border-radius:4px;
-            display:none; }
-  .status.ok { background:var(--green-soft); color:var(--green-ink); display:inline-block; }
-  .status.err { background:var(--red-soft); color:var(--red-ink); display:inline-block; }
-  .resp-meta { font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums; }
-  .toggle-raw { background:none; border:none; color:var(--accent-deep); font-size:12px; padding:0;
-                cursor:pointer; text-decoration:underline; text-underline-offset:3px; box-shadow:none; }
-  .table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:6px; background:var(--panel); }
-  table.data { border-collapse:collapse; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }
-  table.data th { background:#f9fafb; font-family:var(--mono); font-size:10px; color:var(--muted);
-                  font-weight:600; text-align:left; padding:7px 11px; white-space:nowrap;
-                  border-bottom:1px solid var(--line); position:sticky; top:0; }
-  table.data td { padding:6px 11px; border-bottom:1px solid var(--line); white-space:nowrap; }
-  table.data tr:last-child td { border-bottom:0; }
-  table.data tbody tr:hover td { background:#f9fafb; }
-  .raw-json { display:none; font-family:var(--mono); font-size:11.5px; background:#f9fafb;
-              border:1px solid var(--line); border-radius:6px; padding:11px; overflow:auto; max-height:320px; }
-  .empty { color:var(--faint); font-size:12.5px; padding:26px; text-align:center;
-           border:1px dashed var(--line-strong); border-radius:6px; }
+  /* domain tiles */
+  .domains { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+  .dom { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px;
+         box-shadow:var(--shadow-xs); display:flex; flex-direction:column; gap:2px;
+         transition:border-color .12s, box-shadow .12s; }
+  .dom.live { cursor:pointer; }
+  .dom.live:hover { border-color:var(--accent-line); box-shadow:var(--shadow-sm); }
+  .dom .t { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:7px; }
+  .dom .t i { width:7px; height:7px; border-radius:50%; background:#12b76a; flex:none; }
+  .dom.soon .t i { background:var(--line-strong); }
+  .dom .d { font-size:11.5px; color:var(--muted); }
+  .dom.soon .d { color:var(--faint); }
+  .dom .tag { align-self:flex-start; margin-top:7px; font-size:10.5px; font-weight:600; padding:2px 8px;
+              border-radius:4px; background:var(--green-soft); color:var(--green-ink); }
+  .dom.soon .tag { background:var(--bg); color:var(--faint); border:1px solid var(--line); }
+
+  /* product cards */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;
+          box-shadow:var(--shadow-xs); cursor:pointer; display:flex; flex-direction:column; gap:8px;
+          transition:border-color .12s, box-shadow .12s, transform .12s; }
+  .card:hover { border-color:var(--accent-line); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  .card .top { display:flex; align-items:flex-start; gap:10px; }
+  .card .t { font-weight:700; font-size:14px; letter-spacing:-.01em; }
+  .card .t small { display:block; font-family:var(--mono); font-size:10.5px; font-weight:400;
+                   color:var(--faint); margin-top:2px; }
+  .card .badge { margin-left:auto; flex:none; font-family:var(--mono); font-size:10px; font-weight:600;
+                 padding:2px 8px; border-radius:4px; background:var(--accent-soft);
+                 color:var(--accent-deep); border:1px solid var(--accent-line); white-space:nowrap; }
+  .card .badge.dim { background:var(--panel); color:var(--muted); border-color:var(--line-strong);
+                     font-family:inherit; }
+  .card .q { font-size:12.5px; color:var(--muted); flex:1; }
+  .card .meta { display:flex; gap:12px; font-size:11.5px; color:var(--faint);
+                font-variant-numeric:tabular-nums; border-top:1px solid var(--line); padding-top:9px; }
+  .card .meta b { color:var(--ink); font-weight:600; }
+  .card .meta .free { margin-left:auto; color:var(--green-ink); font-weight:600; }
+
+  /* how it works */
+  .how { display:grid; grid-template-columns:1fr 1.15fr; gap:24px; align-items:start; }
+  @media (max-width:860px){ .how { grid-template-columns:1fr; } }
+  .hstep { display:flex; gap:14px; padding:14px 0; border-bottom:1px solid var(--line); }
+  .hstep:last-child { border-bottom:0; }
+  .hstep .num { width:28px; height:28px; flex:none; border-radius:7px; background:var(--accent-soft);
+                color:var(--accent-deep); font-weight:800; font-size:13px; display:flex;
+                align-items:center; justify-content:center; font-variant-numeric:tabular-nums; }
+  .hstep .tt { font-weight:700; font-size:14px; }
+  .hstep .dd { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .hstep .dd code { font-family:var(--mono); font-size:11px; background:var(--bg);
+                    border:1px solid var(--line); border-radius:4px; padding:1px 5px; }
+  .codebox { background:#0c111d; border:1px solid #1d2939; border-radius:8px; overflow:hidden;
+             box-shadow:var(--shadow-sm); }
+  .codebox .bar { display:flex; align-items:center; gap:8px; padding:9px 14px;
+                  border-bottom:1px solid #1d2939; }
+  .codebox .bar span { font-size:10.5px; font-weight:600; letter-spacing:.06em; color:#667085; }
+  .codebox .bar i { width:8px; height:8px; border-radius:50%; background:#344054; }
+  .codebox pre { font-family:var(--mono); font-size:12px; line-height:1.7; color:#e4e9f1;
+                 padding:14px 16px; overflow-x:auto; white-space:pre; }
+  .codebox .c { color:#667085; }
+  .codebox .g { color:#32d583; font-weight:700; }
+  .codebox .y { color:#fdb022; }
+  .codebox .b { color:#84adff; }
+
+  /* bottom cta */
+  .cta { margin:56px 0 0; background:var(--hero); border-radius:12px; padding:36px 40px;
+         display:flex; align-items:center; gap:24px; flex-wrap:wrap;
+         background-image:radial-gradient(480px 200px at 85% 0%, rgba(21,94,239,.25), transparent); }
+  .cta h3 { color:#fff; font-size:19px; font-weight:800; letter-spacing:-.01em; }
+  .cta p { color:var(--hero-ink); font-size:13px; margin-top:4px; }
+  .cta .btns { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+  .btn-p, .btn-g { display:inline-flex; align-items:center; font-size:13.5px; font-weight:600;
+                   border-radius:7px; padding:10px 18px; }
+  .btn-p { background:var(--accent); color:#fff; } .btn-p:hover { background:var(--accent-deep); }
+  .btn-g { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.25); }
+  .btn-g:hover { border-color:#fff; }
+
+  footer { margin-top:56px; border-top:1px solid var(--line); background:var(--panel); }
+  .foot-in { display:flex; gap:24px; flex-wrap:wrap; padding:22px 0; font-size:11.5px; color:var(--faint); }
+  .foot-in b { color:var(--muted); font-weight:600; }
+  .foot-in code { font-family:var(--mono); font-size:10.5px; }
+  .foot-in .r { margin-left:auto; }
 </style>
 </head>
 <body>
-<div class="shell">
 
-  <aside class="side">
-    <div class="brand"><span class="logo">AS</span><span class="nm">ASK SEOUL<span class="sub">Data Platform Console</span></span></div>
-    <div class="group">도메인</div>
-    <ul class="dnav" id="dnav"></ul>
-    <div class="group">리소스</div>
-    <ul class="dnav">
-      <li onclick="location.hash='#playground'"><span class="dot" style="background:#3d4a44"></span>플레이그라운드</li>
-      <li onclick="location.hash='#auth'"><span class="dot" style="background:#3d4a44"></span>인증 · API 키</li>
-    </ul>
-    <div class="foot"><b>Serving Contract v1.1</b><br>갱신 일 1회 · 04:30 KST<br>오류 규약 <code>problem+json</code><br>ASK-Seoul#58 프로토타입</div>
-  </aside>
-
-  <div class="main">
-    <div class="topbar">
-      <h1 id="pageTitle">데이터 카탈로그</h1>
-      <div class="search"><span class="ico"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input type="search" id="q" placeholder="제품·질문·테이블명 검색"></div>
-      <span class="spacer"></span>
-      <span class="env-pill"><i></i>LOCAL · 프로토타입</span>
-      <span class="keychip" id="keychip" onclick="location.hash='#auth'">키 미연결</span>
+<nav class="nav">
+  <div class="wrap nav-in">
+    <div class="brand"><span class="logo">AS</span><span class="nm">ASK SEOUL<span class="sub">Data API Hub</span></span></div>
+    <div class="nav-links">
+      <a class="active" href="/">홈</a>
+      <a href="/catalog">카탈로그</a>
+      <a href="/catalog#playground">플레이그라운드</a>
+      <a href="/catalog#auth">API 키</a>
     </div>
+    <span class="spacer"></span>
+    <span class="env-pill"><i></i>LOCAL · 프로토타입</span>
+    <a class="nav-cta" href="/catalog#auth">무료로 시작</a>
+  </div>
+</nav>
 
-    <div class="content">
-      <div class="steps" id="steps"></div>
-      <div class="terms" id="terms"></div>
-
-      <div class="auth" id="auth">
-        <div>
-          <h3>API 키 발급</h3>
-          <div class="row">
-            <input type="email" id="email" placeholder="you@example.com" autocomplete="email" aria-label="이메일">
-            <button class="btn-p" id="issueBtn">발급</button>
-          </div>
-          <div class="reveal" id="keyReveal">
-            <div class="k"><code id="keyValue"></code><button class="btn-g btn-sm" id="copyKey">복사</button></div>
-            <div class="warn" id="keyNote">이 키는 지금 한 번만 표시됩니다 — 서버에는 해시만 저장됩니다.</div>
-          </div>
-          <div class="ferr" id="issueErr"></div>
-        </div>
-        <div class="usage">
-          <h3>내 사용량</h3>
-          <div class="row"><input type="password" id="pKey" placeholder="ask_… (발급 시 자동 입력)" autocomplete="off"><button class="btn-g" id="keyEye" title="키 보기/가리기" aria-label="키 보기/가리기">보기</button><button class="btn-g" id="meBtn">조회</button></div>
-          <div class="bar"><div class="fill" id="quotaFill"></div></div>
-          <div class="txt"><span id="quotaWho">—</span><span id="quotaTxt">— / —</span></div>
-        </div>
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">ASK SEOUL DATA PLATFORM</div>
+    <h1>찾던 서울 데이터,<br>API 한 줄이면 됩니다</h1>
+    <p class="sub">공공 원천 여러 곳을 수집·정제해 <b>바로 조인해 쓸 수 있는 형태</b>로 제공합니다.
+       매일 새벽 자동 갱신 · 행정동 단위 공간축 · <b>키 발급부터 첫 호출까지 1분</b>.</p>
+    <form class="search-hero" id="heroSearch">
+      <div class="box">
+        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span>
+        <input type="search" id="heroQ" placeholder="어떤 데이터를 찾으세요? — 행사, 혼잡, 박스오피스…" aria-label="데이터 검색">
       </div>
-
-      <div class="sec-title" id="catalog"><h2 id="listTitle">전체 제품</h2><span class="hint" id="listHint"></span></div>
-      <div class="plist">
-        <div class="phead"><span>제품</span><span>답하는 질문</span><span>행 수</span><span>조회 축</span><span></span></div>
-        <div id="plistBody"></div>
-      </div>
-
-      <div class="sec-title" id="playground"><h2>플레이그라운드</h2><span class="hint">키 인증 · 쿼터 실계상 호출</span></div>
-      <div class="play">
-        <div class="play-grid">
-          <div>
-            <div class="field"><label for="pTable">데이터</label><select id="pTable"></select></div>
-            <div class="field"><label for="pLimit">행 수 (limit)</label><input type="number" id="pLimit" value="10" min="1" max="5000"></div>
-            <div class="field" id="rangeField" style="display:none">
-              <label>기간 · <span id="axisName"></span></label>
-              <input type="text" id="pFrom" placeholder="from · YYYY-MM-DD" style="margin-bottom:6px">
-              <input type="text" id="pTo" placeholder="to · YYYY-MM-DD">
-            </div>
-            <button class="btn-p" id="runBtn" style="width:100%">호출</button>
-          </div>
-          <div>
-            <div class="endpoint" id="reqPreview"><span class="m">GET</span> /api/data/&lt;table&gt;?limit=10</div>
-            <div class="resp-head">
-              <span class="status" id="respStatus"></span>
-              <span class="resp-meta" id="respMeta"></span>
-              <span style="flex:1"></span>
-              <button class="toggle-raw" id="toggleRaw" style="display:none">JSON 원문</button>
-            </div>
-            <div class="table-scroll" id="tableWrap" style="display:none"><table class="data" id="respTable"></table></div>
-            <pre class="raw-json" id="rawJson"></pre>
-            <div class="empty" id="respEmpty">키를 연결하고 호출하면 응답이 여기 표시됩니다</div>
-          </div>
-        </div>
-      </div>
+      <button type="submit">검색</button>
+    </form>
+    <div class="hot">
+      <span class="lbl">바로 찾기</span>
+      <a href="/catalog?q=행사">행사 일정</a>
+      <a href="/catalog?q=혼잡">혼잡 패턴</a>
+      <a href="/catalog?q=박스오피스">박스오피스</a>
+      <a href="/catalog?q=외식">동네 상권</a>
     </div>
   </div>
+</header>
+
+<div class="stats wrap">
+  <div class="stats-in">
+    <div class="stat"><div class="v" id="statProducts">—</div><div class="k">데이터 제품 · 제공 중</div></div>
+    <div class="stat"><div class="v" id="statRows">—</div><div class="k">총 데이터 행</div></div>
+    <div class="stat"><div class="v">03:00 <span style="font-size:12px;font-weight:600;color:var(--muted)">KST</span></div><div class="k">매일 자동 갱신</div></div>
+    <div class="stat"><div class="v">1,000<span style="font-size:12px;font-weight:600;color:var(--muted)">회/일</span></div><div class="k">무료 호출 한도 · 키당</div></div>
+  </div>
 </div>
+
+<main class="wrap">
+
+  <section>
+    <div class="sec-head"><h2>도메인</h2><span class="hint">서울을 여섯 각도로</span></div>
+    <div class="domains" id="domains"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>데이터 제품</h2><span class="hint">질문에 바로 답하는 형태로 정제됨</span>
+      <a class="more" href="/catalog">카탈로그 전체 보기 →</a></div>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>시작하기</h2><span class="hint">가입 없음 · 이메일만</span></div>
+    <div class="how">
+      <div>
+        <div class="hstep"><div class="num">1</div><div>
+          <div class="tt">미리보기로 실물 확인</div>
+          <div class="dd">카탈로그에서 아무 제품이나 열면 <b>키 없이 샘플 5행</b>을 바로 볼 수 있습니다 — 쓸만한지 먼저 판단하세요.</div>
+        </div></div>
+        <div class="hstep"><div class="num">2</div><div>
+          <div class="tt">API 키 발급</div>
+          <div class="dd">이메일 하나로 즉시 발급됩니다. 서버에는 키의 <code>SHA-256 해시</code>만 저장돼요.</div>
+        </div></div>
+        <div class="hstep"><div class="num">3</div><div>
+          <div class="tt">호출</div>
+          <div class="dd">REST · JSON 표준. 컬럼 필터와 기간(<code>from</code>/<code>to</code>) 조회를 지원합니다.</div>
+        </div></div>
+      </div>
+      <div class="codebox">
+        <div class="bar"><i></i><span>TERMINAL</span></div>
+        <pre><span class="c"># 1. 샘플 먼저 — 키 없이</span>
+<span class="g">curl</span> <span class="b" id="cbOrigin1">…</span>/api/preview/gold_culture_event_schedule
+
+<span class="c"># 2. 키 발급</span>
+<span class="g">curl</span> -X POST <span class="b" id="cbOrigin2">…</span>/api/keys \
+  -H <span class="y">"content-type: application/json"</span> \
+  -d <span class="y">'{"email":"you@example.com"}'</span>
+
+<span class="c"># 3. 본 호출 — 이번 주말 문화행사</span>
+<span class="g">curl</span> -H <span class="y">"Authorization: Bearer ask_…"</span> \
+  <span class="b" id="cbOrigin3">…</span>/api/data/gold_culture_event_schedule?limit=100</pre>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta">
+    <div>
+      <h3>지금 카탈로그에서 직접 확인하세요</h3>
+      <p>모든 제품이 미리보기 무료 — 마음에 들면 그때 키를 받으면 됩니다.</p>
+    </div>
+    <div class="btns">
+      <a class="btn-g" href="/catalog#auth">API 키 발급</a>
+      <a class="btn-p" href="/catalog">카탈로그 둘러보기</a>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <span><b>Serving Contract v1.1</b></span>
+    <span>갱신 일 1회 · 04:30 KST</span>
+    <span>오류 규약 <code>problem+json</code></span>
+    <span class="r">ASK-Seoul#58 프로토타입 · LOCAL</span>
+  </div>
+</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const nf = new Intl.NumberFormat("ko-KR");
 
-const DOMAINS = [
-  { id:"culture",    name:"문화·행사" },
-  { id:"population", name:"인구·도시" },
-  { id:"transit",    name:"대중교통" },
-  { id:"commerce",   name:"상권" },
-  { id:"weather",    name:"날씨" },
-  { id:"traffic",    name:"교통" },
-];
+// catalog.html 과 동일한 표시명 사전 — 제품이 늘면 양쪽 갱신 (프로토타입 허용 중복)
 const DISPLAY = {
   culture_activity_by_dong: { title:"행정동별 문화 활동", unit:"행정동 × 날짜" },
   culture_calendar_density: { title:"구별 행사 캘린더 밀집도", unit:"자치구 × 날짜" },
@@ -306,295 +310,65 @@ const DISPLAY = {
   culture_dine_around:      { title:"행사 동네 외식 상권", unit:"행정동 = 1행" },
   culture_booking_curve:    { title:"공연 예매 오픈 궤적", unit:"공연 = 1행" },
 };
-
-let PRODUCTS = [];
-let activeDomain = "all";
-let query = "";
+const DOMAINS = [
+  { id:"culture",    name:"문화·행사", desc:"공연·전시·축제·예매·상권" },
+  { id:"population", name:"인구·도시", desc:"실시간 인구·도시데이터" },
+  { id:"transit",    name:"대중교통", desc:"버스·지하철 접근성" },
+  { id:"commerce",   name:"상권",     desc:"업종·매출 상권 분석" },
+  { id:"weather",    name:"날씨",     desc:"기상 관측·예보" },
+  { id:"traffic",    name:"교통",     desc:"도로 소통·사고" },
+];
 
 const domainOf = (p) => (p.product_id || p.name || "").replace(/^gold_/, "").split("_")[0];
 const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
 
+// 코드 예시의 오리진을 실제 접속 주소로
+for (const id of ["cbOrigin1", "cbOrigin2", "cbOrigin3"]) $(id).textContent = location.origin;
+
+$("heroSearch").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = $("heroQ").value.trim();
+  location.href = q ? "/catalog?q=" + encodeURIComponent(q) : "/catalog";
+});
+
 async function boot() {
-  const res = await fetch("/api/catalog");
-  PRODUCTS = (await res.json()).products || [];
-  renderNav(); renderStart(); renderList(); renderSelect();
-  updatePreview();
-}
-
-function renderNav() {
-  const counts = {};
-  for (const p of PRODUCTS) counts[domainOf(p)] = (counts[domainOf(p)] || 0) + 1;
-  for (const d of Object.keys(counts)) if (!DOMAINS.some((x) => x.id === d)) DOMAINS.push({ id:d, name:d });
-  const ul = $("dnav");
-  ul.innerHTML = "";
-  const all = document.createElement("li");
-  all.className = activeDomain === "all" ? "active" : "";
-  all.innerHTML = "<span class='dot'></span>전체<span class='cnt'>" + PRODUCTS.length + "</span>";
-  all.onclick = () => { activeDomain = "all"; renderNav(); renderList(); };
-  ul.appendChild(all);
-  for (const d of DOMAINS) {
-    const n = counts[d.id] || 0;
-    const li = document.createElement("li");
-    li.className = (activeDomain === d.id ? "active " : "") + (n ? "" : "soon");
-    li.innerHTML = "<span class='dot'></span>" + d.name +
-      (n ? "<span class='cnt'>" + n + "</span>" : "<span class='soon-tag'>준비 중</span>");
-    if (n) li.onclick = () => { activeDomain = d.id; renderNav(); renderList(); };
-    ul.appendChild(li);
-  }
-}
-
-function renderStart() {
-  const step = (n, tt, dd, hash) =>
-    "<div class='step' onclick=\"location.hash='" + hash + "'\"><div class='num'>" + n + "</div>" +
-    "<div><div class='tt'>" + tt + "</div><div class='dd'>" + dd + "</div></div></div>";
-  $("steps").innerHTML =
-    step(1, "API 키 받기", "이메일만 넣으면 즉시 발급됩니다", "#auth") +
-    step(2, "데이터 고르기", "답하고 싶은 질문으로 찾아보세요", "#catalog") +
-    step(3, "바로 호출하기", "curl 한 줄 · JSON 응답", "#playground");
-  $("terms").innerHTML =
-    "<span><b>무료</b> 프로토타입</span>" +
-    "<span>키당 하루 <b>1,000회</b> 호출</span>" +
-    "<span>매일 새벽 자동 갱신</span>" +
-    "<span>REST · JSON 표준</span>";
-}
-function fmtFresh(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
-  const kst = new Date(d.getTime() + 9 * 3600 * 1000);
-  return kst.toISOString().slice(0, 16).replace("T", " ") + " KST";
-}
-
-function visible() {
-  return PRODUCTS.filter((p) => {
-    if (activeDomain !== "all" && domainOf(p) !== activeDomain) return false;
-    if (!query) return true;
-    const hay = (titleOf(p) + " " + (p.product_question || "") + " " + p.name).toLowerCase();
-    return hay.includes(query);
-  });
-}
-
-function renderList() {
-  const list = visible();
-  const dn = activeDomain === "all" ? "전체 제품" : (DOMAINS.find((d) => d.id === activeDomain) || {}).name;
-  $("listTitle").textContent = dn;
-  $("listHint").textContent = list.length + "개" + (query ? " · '" + query + "' 검색" : "");
-  const body = $("plistBody");
-  body.innerHTML = "";
-  if (!list.length) { body.innerHTML = "<div class='empty' style='border:0'>조건에 맞는 제품이 없습니다</div>"; return; }
-  for (const p of list) {
-    const d = DISPLAY[p.product_id] || {};
-    const row = document.createElement("div");
-    row.className = "prow";
-    row.innerHTML =
-      "<div class='t'>" + titleOf(p) + "<small>" + p.name + "</small></div>" +
-      "<div class='q'>" + (p.product_question || "—") + "</div>" +
-      "<div class='n'>" + nf.format(p.row_count || 0) + "</div>" +
-      (p.time_axis ? "<span class='badge'>" + p.time_axis + "</span>" : "<span class='badge dim'>명부형</span>") +
-      "<div class='act'><button class='btn-g btn-sm' data-try='" + p.name + "'>써보기</button></div>";
-    const detail = document.createElement("div");
-    detail.className = "pdetail";
-    const cols = p.columns || [];
-    detail.innerHTML =
-      "<div class='dhead'>엔드포인트</div>" +
-      "<div class='endpoint'><span class='m'>GET</span> /api/data/" + p.name + "?limit=100" +
-      (p.time_axis ? "&from=2026-07-01&to=2026-07-31" : "") + "</div>" +
-      "<div class='dhead' style='margin-top:12px'>스키마 · " + cols.length + "컬럼" + (d.unit ? " · 그레인: " + d.unit : "") +
-      (p.exported_at ? " · 마지막 갱신 " + fmtFresh(p.exported_at) : "") + "</div>" +
-      "<div class='cols'>" + cols.map((c) =>
-        "<div class='col-item'><code>" + c.name + "</code><span class='ty'>" + c.type + "</span></div>").join("") + "</div>" +
-      "<div style='margin-top:12px'><button class='btn-g' data-pv='" + p.name + "'>샘플 5행 미리보기 — 키 없이</button></div>" +
-      "<div class='table-scroll' data-pvwrap style='display:none;margin-top:8px'><table class='data'></table></div>";
-    row.addEventListener("click", (e) => {
-      if (e.target.closest("[data-try]")) return;
-      detail.classList.toggle("open");
-    });
-    // 무인증 미리보기 — 물건을 먼저 보여준다 (쿼터 무과금)
-    detail.querySelector("[data-pv]").addEventListener("click", async (e) => {
-      const btn = e.currentTarget;
-      const wrap = detail.querySelector("[data-pvwrap]");
-      if (wrap.style.display === "block") { wrap.style.display = "none"; btn.textContent = "샘플 5행 미리보기 — 키 없이"; return; }
-      btn.disabled = true; btn.textContent = "불러오는 중…";
-      try {
-        const res = await fetch("/api/preview/" + btn.dataset.pv);
-        const b = await res.json();
-        const rows = b.rows || [];
-        const tcols = rows.length ? Object.keys(rows[0]) : [];
-        wrap.querySelector("table").innerHTML =
-          "<thead><tr>" + tcols.map((c) => "<th>" + c + "</th>").join("") + "</tr></thead>" +
-          "<tbody>" + rows.map((r) =>
-            "<tr>" + tcols.map((c) => "<td>" + (r[c] ?? "<span style='color:var(--faint)'>∅</span>") + "</td>").join("") + "</tr>"
-          ).join("") + "</tbody>";
-        wrap.style.display = "block";
-        btn.textContent = "미리보기 접기";
-      } catch { btn.textContent = "불러오기 실패 — 다시 시도"; }
-      finally { btn.disabled = false; }
-    });
-    body.appendChild(row); body.appendChild(detail);
-  }
-  body.querySelectorAll("[data-try]").forEach((b) => b.addEventListener("click", () => {
-    $("pTable").value = b.dataset.try;
-    onTableChange();
-    location.hash = "#playground";
-  }));
-}
-
-function renderSelect() {
-  const sel = $("pTable");
-  sel.innerHTML = "";
-  for (const p of PRODUCTS) {
-    const o = document.createElement("option");
-    o.value = p.name; o.textContent = titleOf(p) + " — " + p.name;
-    sel.appendChild(o);
-  }
-  onTableChange();
-}
-
-function currentProduct() { return PRODUCTS.find((p) => p.name === $("pTable").value); }
-function onTableChange() {
-  const p = currentProduct();
-  if (!p) return;
-  $("rangeField").style.display = p.time_axis ? "block" : "none";
-  $("axisName").textContent = p.time_axis || "";
-  updatePreview();
-}
-function buildPath() {
-  const p = currentProduct();
-  if (!p) return "";
-  const q = new URLSearchParams();
-  q.set("limit", $("pLimit").value || "10");
-  if (p.time_axis && $("pFrom").value.trim()) q.set("from", $("pFrom").value.trim());
-  if (p.time_axis && $("pTo").value.trim()) q.set("to", $("pTo").value.trim());
-  return "/api/data/" + p.name + "?" + q.toString();
-}
-function updatePreview() {
-  const key = $("pKey").value.trim();
-  $("reqPreview").innerHTML =
-    "<span class='m'>curl</span> -H \"Authorization: Bearer " + (key ? key.slice(0, 8) + "…" : "&lt;API_KEY&gt;") + "\" \\\n" +
-    "  \"" + location.origin + buildPath() + "\"";
-  const chip = $("keychip");
-  if (key) { chip.textContent = key.slice(0, 8) + "…"; chip.className = "keychip on"; }
-  else { chip.textContent = "키 미연결"; chip.className = "keychip"; }
-}
-async function refreshQuota() {
-  const key = $("pKey").value.trim();
-  if (!key) return;
+  let products = [];
   try {
-    const res = await fetch("/api/me", { headers: { authorization: "Bearer " + key } });
-    if (!res.ok) return;
-    const b = await res.json();
-    $("quotaFill").style.width = Math.min(100, (b.used_today / b.daily_quota) * 100) + "%";
-    $("quotaTxt").textContent = nf.format(b.used_today) + " / " + nf.format(b.daily_quota);
-    $("quotaWho").textContent = b.email + " · " + b.day;
+    const res = await fetch("/api/catalog");
+    products = (await res.json()).products || [];
   } catch {}
-}
-function renderRows(rows) {
-  const tbl = $("respTable");
-  tbl.innerHTML = "";
-  if (!rows.length) { $("tableWrap").style.display = "none"; return; }
-  const cols = Object.keys(rows[0]);
-  tbl.innerHTML =
-    "<thead><tr>" + cols.map((c) => "<th>" + c + "</th>").join("") + "</tr></thead>" +
-    "<tbody>" + rows.slice(0, 15).map((r) =>
-      "<tr>" + cols.map((c) => "<td>" + (r[c] ?? "<span style='color:var(--faint)'>∅</span>") + "</td>").join("") + "</tr>"
-    ).join("") + "</tbody>";
-  $("tableWrap").style.display = "block";
-}
-// problem+json → 사람이 읽는 한국어. 매핑 없으면 서버 detail 그대로.
-function friendly(status, body) {
-  const t = (body && body.title) || "";
-  if (t === "rotate confirmation required") return null; // 별도 확인 플로가 처리
-  if (status === 429 && t === "issuance rate limited")
-    return "같은 네트워크에서 발급이 잦았어요 — IP당 시간당 5회까지예요. 잠시 뒤 다시 시도해주세요.";
-  if (status === 429) return "오늘 호출 한도를 모두 썼어요 — 내일 00:00(KST)에 리셋됩니다.";
-  if (status === 401) return "키가 유효하지 않아요 — 위 '인증 · API 키'에서 발급하거나 다시 입력해주세요.";
-  if (status === 403) return "폐기된 키예요 — 같은 이메일로 재발급하면 새 키를 받을 수 있어요.";
-  if (status === 400 && t === "no time axis")
-    return "이 데이터는 시간축이 없어서 기간(from/to) 필터를 지원하지 않아요 — 기간을 비우고 호출해주세요.";
-  if (status === 400 && t === "unknown filter") return (body.detail || "") + " — 컬럼 이름 오타를 확인해주세요.";
-  return (body && (body.detail || body.title)) || "요청이 실패했어요.";
-}
-function showStatus(code, msg) {
-  const s = $("respStatus");
-  s.textContent = "HTTP " + code;
-  s.className = "status " + (String(code)[0] === "2" ? "ok" : "err");
-  $("respMeta").textContent = msg || "";
-}
-async function run() {
-  const key = $("pKey").value.trim();
-  if (!key) { showStatus(401, "키를 먼저 발급/입력하세요"); return; }
-  $("runBtn").disabled = true;
-  try {
-    const res = await fetch(buildPath(), { headers: { authorization: "Bearer " + key } });
-    const body = await res.json();
-    $("rawJson").textContent = JSON.stringify(body, null, 2);
-    $("toggleRaw").style.display = "inline";
-    $("respEmpty").style.display = "none";
-    if (res.ok) {
-      showStatus(res.status, body.row_count + "행 · limit " + body.limit + (body.time_axis ? " · 축 " + body.time_axis : ""));
-      renderRows(body.rows || []);
-      $("rawJson").style.display = "none";
-    } else {
-      showStatus(res.status, friendly(res.status, body));
-      $("tableWrap").style.display = "none";
-      $("rawJson").style.display = "block";
-    }
-  } catch (e) { showStatus("ERR", String(e)); }
-  finally { $("runBtn").disabled = false; refreshQuota(); }
-}
 
-// 발급은 2단계 — 등록된 이메일이면 서버가 409 를 주고, 버튼이 "재발급 확인" 모드로 바뀐다
-function resetIssueBtn() {
-  const b = $("issueBtn");
-  b.textContent = "발급"; b.dataset.confirm = ""; b.style.background = "";
-}
-$("issueBtn").addEventListener("click", async () => {
-  $("issueErr").textContent = "";
-  const confirmRotate = $("issueBtn").dataset.confirm === "1";
-  const res = await fetch("/api/keys", {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: $("email").value, ...(confirmRotate ? { confirm_rotate: true } : {}) }),
-  });
-  const body = await res.json();
-  if (res.status === 409 && body.title === "rotate confirmation required") {
-    $("issueErr").textContent =
-      "이 이메일에는 이미 키(" + body.key_prefix + "…)가 있어요. 재발급하면 그 키는 즉시 만료됩니다 — 계속하려면 버튼을 한 번 더 눌러주세요.";
-    const b = $("issueBtn");
-    b.textContent = "기존 키 만료하고 재발급"; b.dataset.confirm = "1"; b.style.background = "var(--red-ink, #b3423a)";
-    return;
-  }
-  resetIssueBtn();
-  if (!res.ok) { $("issueErr").textContent = friendly(res.status, body); return; }
-  $("keyValue").textContent = body.key;
-  $("keyReveal").style.display = "block";
-  if (body.rotated) $("keyNote").textContent = "기존 키는 방금 폐기되었습니다. 새 키는 지금 한 번만 표시됩니다.";
-  $("pKey").value = body.key;
-  updatePreview(); refreshQuota();
-});
-$("email").addEventListener("input", () => { resetIssueBtn(); $("issueErr").textContent = ""; });
-$("keyEye").addEventListener("click", () => {
-  const k = $("pKey");
-  const show = k.type === "password";
-  k.type = show ? "text" : "password";
-  $("keyEye").textContent = show ? "가리기" : "보기";
-});
-$("copyKey").addEventListener("click", async () => {
-  await navigator.clipboard.writeText($("keyValue").textContent);
-  $("copyKey").textContent = "복사됨";
-  setTimeout(() => ($("copyKey").textContent = "복사"), 1500);
-});
-$("toggleRaw").addEventListener("click", () => {
-  const r = $("rawJson");
-  const show = r.style.display !== "block";
-  r.style.display = show ? "block" : "none";
-  $("tableWrap").style.display = show ? "none" : "block";
-});
-$("q").addEventListener("input", () => { query = $("q").value.trim().toLowerCase(); renderList(); });
-$("runBtn").addEventListener("click", run);
-$("meBtn").addEventListener("click", () => { updatePreview(); refreshQuota(); });
-$("pTable").addEventListener("change", onTableChange);
-for (const id of ["pKey", "pLimit", "pFrom", "pTo"]) $(id).addEventListener("input", updatePreview);
+  // 통계
+  $("statProducts").textContent = products.length ? products.length + "종" : "—";
+  const totalRows = products.reduce((a, p) => a + (p.row_count || 0), 0);
+  $("statRows").textContent = totalRows ? nf.format(totalRows) : "—";
 
+  // 도메인 타일
+  const counts = {};
+  for (const p of products) counts[domainOf(p)] = (counts[domainOf(p)] || 0) + 1;
+  $("domains").innerHTML = DOMAINS.map((d) => {
+    const n = counts[d.id] || 0;
+    return "<div class='dom " + (n ? "live" : "soon") + "'" +
+      (n ? " onclick=\"location.href='/catalog'\"" : "") + ">" +
+      "<div class='t'><i></i>" + d.name + "</div>" +
+      "<div class='d'>" + d.desc + "</div>" +
+      "<span class='tag'>" + (n ? n + "종 제공 중" : "준비 중") + "</span></div>";
+  }).join("");
+
+  // 제품 카드 — 행수 큰 순으로 전시
+  const sorted = [...products].sort((a, b) => (b.row_count || 0) - (a.row_count || 0));
+  $("cards").innerHTML = sorted.map((p) => {
+    const d = DISPLAY[p.product_id] || {};
+    return "<div class='card' onclick=\"location.href='/catalog?q=" + encodeURIComponent(p.name) + "'\">" +
+      "<div class='top'><div class='t'>" + titleOf(p) + "<small>" + p.name + "</small></div>" +
+      (p.time_axis ? "<span class='badge'>" + p.time_axis + "</span>" : "<span class='badge dim'>명부형</span>") +
+      "</div>" +
+      "<div class='q'>" + (p.product_question || "—") + "</div>" +
+      "<div class='meta'><span><b>" + nf.format(p.row_count || 0) + "</b> 행</span>" +
+      (d.unit ? "<span>" + d.unit + "</span>" : "") +
+      "<span class='free'>미리보기 무료</span></div></div>";
+  }).join("") || "<div style='color:var(--faint);font-size:13px'>카탈로그를 불러오지 못했습니다 — <a href='/catalog' style='color:var(--accent-deep);font-weight:600'>카탈로그로 이동</a></div>";
+}
 boot();
 </script>
 </body>
