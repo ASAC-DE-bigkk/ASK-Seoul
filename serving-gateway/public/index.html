@@ -257,7 +257,11 @@
 <div class="stats wrap">
   <div class="stats-in">
     <div class="stat"><div class="v sk" id="statProducts">00종</div><div class="k">데이터 제품 · 제공 중</div></div>
-    <div class="stat"><div class="v sk" id="statRows">000,000</div><div class="k">총 데이터 행</div></div>
+    <!-- 공간 커버리지는 행안부 행정동 마스터(서울 25구·426동) 기준 구조 상수다. 갱신 시각과 달리
+         매일 변하지 않지만 행정동 개편 때 드리프트한다 — 계약(meta.serving)에 커버리지 필드가
+         생기면 export 실측값으로 대체할 것. 총 행수는 그레인이 다른 제품을 더한 값이라 제외했다
+         (제품별 행수는 카드에 유지 — 거긴 규모 판단에 쓰인다) -->
+    <div class="stat"><div class="v">426<span class="u">개 행정동</span></div><div class="k">공간 커버리지 · 서울 전역</div></div>
     <div class="stat"><div class="v sk" id="statFresh">0시간 전</div><div class="k" id="statFreshK">마지막 갱신</div></div>
     <div class="stat"><div class="v">1,000<span class="u">회/일</span></div><div class="k">무료 호출 한도 · 키당</div></div>
   </div>
@@ -411,7 +415,7 @@ async function boot() {
     if (!res.ok) throw new Error("HTTP " + res.status);
     products = (await res.json()).products || [];
   } catch {
-    setStat("statProducts", "—"); setStat("statRows", "—"); setStat("statFresh", "—");
+    setStat("statProducts", "—"); setStat("statFresh", "—");
     $("statFreshK").textContent = "마지막 갱신 · 확인 불가";
     failState("domains", "도메인 정보를 불러오지 못했습니다");
     failState("cards", "제품 목록을 불러오지 못했습니다");
@@ -420,8 +424,6 @@ async function boot() {
 
   // ── 통계
   setStat("statProducts", products.length + "<span class='u'>종</span>");
-  const totalRows = products.reduce((a, p) => a + (p.row_count || 0), 0);
-  setStat("statRows", nf.format(totalRows));
 
   const stamps = products.map((p) => p.exported_at).filter(Boolean).sort();
   const newest = stamps[stamps.length - 1];
