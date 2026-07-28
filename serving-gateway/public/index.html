@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASK: SEOUL — 서울 데이터 API 허브</title>
-<meta name="description" content="서울의 문화·행사 데이터를 수집·정제해 바로 조인할 수 있는 형태로 제공하는 데이터 API 허브. 매일 자동 갱신 · 행정동 단위 공간축 · 이메일만으로 즉시 키 발급.">
+<meta name="description" content="서울의 문화·인구·교통·상권·날씨 데이터를 행정동 코드 하나로 조인해 쓰는 API 허브. 커버리지는 도메인마다 다르며 제품마다 명시. 이메일만으로 즉시 키 발급.">
 <meta name="theme-color" content="#08110f">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="ASK: SEOUL">
 <meta property="og:title" content="ASK: SEOUL — 서울 데이터 API 허브">
-<meta property="og:description" content="서울에서 지금 무슨 일이 일어나는지, API 한 줄로. 미리보기는 키 없이 무료.">
+<meta property="og:description" content="흩어진 서울 데이터를 같은 축 위에. 미리보기는 키 없이 무료.">
 <meta name="twitter:card" content="summary">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f6f68'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EAS%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     /* 팔레트 — 단청(丹靑)에서 가져왔다. 청록이 데이터, 주홍이 행동.
-       제네릭 SaaS 블루를 쓰지 않는 이유: 이 제품의 소재가 서울의 문화이기 때문이다.
+       제네릭 SaaS 블루를 쓰지 않는 이유: 이 제품의 소재가 서울이기 때문이다.
        중성색도 순회색이 아니라 청록 쪽으로 아주 살짝 기울여 놓았다. */
     --bg:#f6f7f6; --panel:#ffffff;
     --ink:#12211f; --muted:#48605c; --faint:#8fa3a0; --line:#e6eae8; --line-strong:#ccd5d2;
@@ -175,8 +175,12 @@
   .dom .t i { width:6px; height:6px; border-radius:50%; background:#2aa79a; flex:none; }
   .dom.soon .t { color:var(--muted); } .dom.soon .t i { background:var(--line-strong); }
   .dom .d { font-size:11px; color:var(--faint); }
-  .dom .n { font-family:var(--mono); font-size:10px; font-weight:600; color:var(--accent-deep); margin-top:4px; }
-  .dom.soon .n { color:var(--faint); }
+  .dom .n { font-family:var(--mono); font-size:10px; font-weight:600; color:var(--accent-deep); margin-top:4px;
+            display:flex; align-items:baseline; gap:7px; }
+  /* 공간 단위 — 도메인마다 다르다는 사실이 카드 안에서 바로 읽혀야 한다 */
+  .dom .n .u { font-family:inherit; font-weight:500; color:var(--teal-deep); margin-left:auto;
+               white-space:nowrap; }
+  .dom.soon .n, .dom.soon .n .u { color:var(--faint); }
 
   /* skeleton · 상태 */
   .sk { position:relative; overflow:hidden; background:#e9eeec; border-radius:5px; color:transparent; }
@@ -289,10 +293,11 @@
   <canvas id="field" aria-hidden="true"></canvas>
   <div class="wrap">
     <div class="hero-in">
-      <div class="lab">Seoul Culture · Data API</div>
-      <h1>서울을 <span class="n">426</span>개 조각으로<span class="l2">읽는 API</span></h1>
-      <p class="sub">공공 원천 네 곳을 매일 새벽 수집·정제해 <b>행정동 단위로 잘라</b> 제공합니다.
-         남의 데이터에 <b>그대로 조인</b>되는 공간축 · 기간 겹침 질의 · 키 발급부터 첫 호출까지 1분.</p>
+      <div class="lab">Seoul Open Data · Multi-domain API</div>
+      <h1>흩어진 서울 데이터를<span class="l2">같은 축 위에</span></h1>
+      <p class="sub">문화·인구·교통·상권·날씨를 <b>행정동 코드 하나</b>로 붙여 씁니다.
+         커버리지는 도메인마다 다르고, <b>제품마다 그대로 적어둡니다</b> — 문화 426동 전역,
+         실시간 도시데이터 121곳처럼.</p>
       <form class="search-hero" id="heroSearch">
         <div class="box">
           <span class="ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span>
@@ -307,18 +312,19 @@
         <a href="/catalog?q=외식">동네 상권</a>
       </div>
     </div>
-    <p class="lab fieldnote">격자 한 칸 = 행정동 하나<br>서울 426동</p>
+    <p class="lab fieldnote">격자 한 칸 = 행정동 하나<br>커버리지는 도메인마다 다름</p>
   </div>
 </header>
 
 <div class="wrap">
   <div class="strip">
     <div class="cell"><div class="lab">Products</div><div class="v sk" id="statProducts">0종</div><div class="k">제공 중인 데이터 제품</div></div>
-    <!-- 공간 커버리지는 행안부 행정동 마스터(서울 25구·426동) 기준 구조 상수다. 갱신 시각과 달리
-         매일 변하지 않지만 행정동 개편 때 드리프트한다 — 계약(meta.serving)에 커버리지 필드가
-         생기면 export 실측값으로 대체할 것. 총 행수는 그레인이 다른 제품을 더한 값이라 쓰지 않는다
-         (제품별 행수는 카드에 유지 — 거긴 규모 판단에 쓰인다) -->
-    <div class="cell"><div class="lab">Coverage</div><div class="v">426<span class="u">개 행정동</span></div><div class="k">서울 전역</div></div>
+    <!-- 여기에 "426개 행정동"을 커버리지로 적었었는데, 그건 culture 한 도메인의 커버리지다.
+         citydata 는 실시간 관측 121곳, weather 는 KMA 격자 80칸이라 플랫폼 공통값이 아니다.
+         공통인 것은 커버리지가 아니라 **조인 축**(행정동 코드, #48 합의)이라 그것만 적는다.
+         도메인별 실측 커버리지는 아래 도메인 격자에서 각각 밝힌다. 총 행수도 쓰지 않는다 —
+         그레인이 다른 제품을 더한 값이라 의미가 없다(제품별 행수는 카드에 유지) -->
+    <div class="cell"><div class="lab">Join axis</div><div class="v">행정동<span class="u"> 코드</span></div><div class="k">도메인 공통 조인 키</div></div>
     <div class="cell"><div class="lab">Freshness</div><div class="v sk" id="statFresh">0시간 전</div><div class="k" id="statFreshK">마지막 갱신</div></div>
     <div class="cell"><div class="lab">Free tier</div><div class="v">1,000<span class="u">회/일</span></div><div class="k">키당 무료 호출</div></div>
   </div>
@@ -336,12 +342,12 @@
   </section>
 
   <section>
-    <div class="sec-head"><h2>도메인</h2><span class="hint">서울을 여섯 각도로</span></div>
+    <div class="sec-head"><h2>도메인</h2><span class="hint">서울을 여섯 각도로 · 공간 단위는 도메인마다 다릅니다</span></div>
     <div class="domains" id="domains"></div>
   </section>
 
   <section>
-    <div class="sec-head"><h2>시작하기</h2><span class="hint">가입 없음 · 이메일만</span></div>
+    <div class="sec-head"><h2>시작하기</h2><span class="hint">가입 없음 · 이메일만 · 아래 데모는 현재 서빙 중인 문화 도메인</span></div>
     <div class="how">
       <div>
         <div class="hstep"><div class="num2">1</div><div>
@@ -412,13 +418,17 @@ const DISPLAY = {
   culture_dine_around:      { title:"행사 동네 외식 상권", unit:"행정동 = 1행" },
   culture_booking_curve:    { title:"공연 예매 오픈 궤적", unit:"공연 = 1행" },
 };
+// 공간 단위는 도메인마다 다르다 — 여기에 실측값을 적어 "426동 전역"이 플랫폼 전체인 것처럼
+// 읽히지 않게 한다. 근거: culture=dim_admin_dong 426 scaffold · citydata=통합 API 121장소
+// (citydata_bronze.py) · weather=config/seoul_kma_grids.csv 80칸 · transit/commerce=gold 그레인이
+// 행정동. traffic 은 단위를 확인하지 못해 비워 둔다(모르는 것을 적지 않는다).
 const DOMAINS = [
-  { id:"culture",    name:"문화·행사", desc:"공연·전시·축제·예매" },
-  { id:"population", name:"인구·도시", desc:"실시간 인구·도시데이터" },
-  { id:"transit",    name:"대중교통", desc:"버스·지하철 접근성" },
-  { id:"commerce",   name:"상권",     desc:"업종·매출 분석" },
-  { id:"weather",    name:"날씨",     desc:"기상 관측·예보" },
-  { id:"traffic",    name:"교통",     desc:"도로 소통·사고" },
+  { id:"culture",    name:"문화·행사", desc:"공연·전시·축제·예매",     unit:"행정동 426 전역" },
+  { id:"population", name:"인구·도시", desc:"실시간 인구·도시데이터",   unit:"관측 121곳" },
+  { id:"transit",    name:"대중교통",  desc:"버스·지하철 접근성",       unit:"행정동" },
+  { id:"commerce",   name:"상권",      desc:"업종·매출 분석",           unit:"행정동" },
+  { id:"weather",    name:"날씨",      desc:"기상 관측·예보",           unit:"기상 격자 80" },
+  { id:"traffic",    name:"교통",      desc:"도로 소통·사고",           unit:"" },
 ];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
@@ -676,7 +686,8 @@ async function bootCatalog() {
     const n = counts[d.id] || 0;
     const inner = "<span class='t'><i aria-hidden='true'></i>" + esc(d.name) + "</span>" +
       "<span class='d'>" + esc(d.desc) + "</span>" +
-      "<span class='n'>" + (n ? n + " PRODUCTS" : "SOON") + "</span>";
+      "<span class='n'>" + (n ? n + " PRODUCTS" : "SOON") +
+      (d.unit ? "<span class='u'>" + esc(d.unit) + "</span>" : "") + "</span>";
     return n ? "<a class='dom' href='/catalog'>" + inner + "</a>"
              : "<div class='dom soon'>" + inner + "</div>";
   }).join("");
