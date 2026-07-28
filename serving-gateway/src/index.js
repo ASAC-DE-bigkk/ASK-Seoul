@@ -15,8 +15,8 @@ const json = (obj, status = 200) =>
     },
   });
 
-const problem = (status, title, detail) =>
-  new Response(JSON.stringify({ type: "about:blank", title, status, detail }), {
+const problem = (status, title, detail, extras = {}) =>
+  new Response(JSON.stringify({ type: "about:blank", title, status, detail, ...extras }), {
     status,
     headers: {
       "content-type": "application/problem+json; charset=utf-8",
@@ -63,8 +63,15 @@ async function issueKey(env, request) {
   const now = new Date().toISOString();
 
   // 이메일당 1키: 기존 키가 있으면 rotate — 해시 교체 + 오늘 사용량 승계(rotate 로 쿼터 리셋 방지)
-  const existing = await env.DB.prepare("SELECT key_hash FROM _keys WHERE email = ?")
+  const existing = await env.DB.prepare("SELECT key_hash, key_prefix FROM _keys WHERE email = ?")
     .bind(email).first();
+
+  // rotate 는 기존 키를 즉시 무효화하는 파괴적 동작 — confirm_rotate 없이는 실행하지 않는다
+  if (existing && body.confirm_rotate !== true)
+    return problem(409, "rotate confirmation required",
+      `'${email}' 에는 이미 키(${existing.key_prefix}…)가 있다 — 재발급하면 기존 키가 즉시 만료된다. ` +
+      "계속하려면 body 에 confirm_rotate: true 를 추가할 것",
+      { email, key_prefix: existing.key_prefix });
 
   const statements = [];
   let rotated = false;
@@ -124,6 +131,22 @@ async function handleCatalog(env) {
   return json({
     products: results.map((r) => ({ ...r, columns: JSON.parse(r.columns) })),
   });
+}
+
+// 무인증 샘플 미리보기 — 고정 5행, 필터 없음, 쿼터 무과금 ("물건을 먼저 보여준다")
+const PREVIEW_ROWS = 5;
+async function handlePreview(env, table) {
+  if (!/^[a-z0-9_]+$/.test(table))
+    return problem(400, "invalid table", "테이블 이름 형식이 아니다");
+  const meta = await env.DB.prepare("SELECT name, time_axis FROM _catalog WHERE name = ?")
+    .bind(table).first();
+  if (!meta) return problem(404, "unknown table", `'${table}' 은 서빙 카탈로그에 없다 — GET /api/catalog 참조`);
+  // 시간축이 있으면 최신 구간을 보여준다 — 미리보기의 존재 이유는 "실물이 쓸만한가"의 판단
+  const order = meta.time_axis ? ` ORDER BY "${meta.time_axis}" DESC` : "";
+  const { results } = await env.DB.prepare(
+    `SELECT * FROM "${table}"${order} LIMIT ${PREVIEW_ROWS}`
+  ).all();
+  return json({ table, preview: true, row_count: results.length, rows: results });
 }
 
 async function handleData(env, table, params, keyRow) {
@@ -200,6 +223,9 @@ export default {
     if (path === "/api/keys" && request.method === "POST") return issueKey(env, request);
     if (request.method !== "GET") return problem(405, "method not allowed", "조회 전용 API");
     if (path === "/api/catalog") return handleCatalog(env);
+
+    const previewMatch = path.match(/^\/api\/preview\/([^/]+)$/);
+    if (previewMatch) return handlePreview(env, decodeURIComponent(previewMatch[1]));
 
     const dataMatch = path.match(/^\/api\/data\/([^/]+)$/);
     if (dataMatch || path === "/api/me") {

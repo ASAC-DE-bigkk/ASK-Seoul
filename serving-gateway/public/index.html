@@ -197,7 +197,7 @@
         </div>
         <div class="usage">
           <h3>내 사용량</h3>
-          <div class="row"><input type="text" id="pKey" placeholder="ask_… (발급 시 자동 입력)" autocomplete="off"><button class="btn-g" id="meBtn">조회</button></div>
+          <div class="row"><input type="password" id="pKey" placeholder="ask_… (발급 시 자동 입력)" autocomplete="off"><button class="btn-g" id="keyEye" title="키 보기/가리기" aria-label="키 보기/가리기">보기</button><button class="btn-g" id="meBtn">조회</button></div>
           <div class="bar"><div class="fill" id="quotaFill"></div></div>
           <div class="txt"><span id="quotaWho">—</span><span id="quotaTxt">— / —</span></div>
         </div>
@@ -357,10 +357,33 @@ function renderList() {
       "<div class='dhead' style='margin-top:12px'>스키마 · " + cols.length + "컬럼" + (d.unit ? " · 그레인: " + d.unit : "") +
       (p.exported_at ? " · 마지막 갱신 " + fmtFresh(p.exported_at) : "") + "</div>" +
       "<div class='cols'>" + cols.map((c) =>
-        "<div class='col-item'><code>" + c.name + "</code><span class='ty'>" + c.type + "</span></div>").join("") + "</div>";
+        "<div class='col-item'><code>" + c.name + "</code><span class='ty'>" + c.type + "</span></div>").join("") + "</div>" +
+      "<div style='margin-top:12px'><button class='btn-g' data-pv='" + p.name + "'>샘플 5행 미리보기 — 키 없이</button></div>" +
+      "<div class='table-scroll' data-pvwrap style='display:none;margin-top:8px'><table class='data'></table></div>";
     row.addEventListener("click", (e) => {
       if (e.target.closest("[data-try]")) return;
       detail.classList.toggle("open");
+    });
+    // 무인증 미리보기 — 물건을 먼저 보여준다 (쿼터 무과금)
+    detail.querySelector("[data-pv]").addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const wrap = detail.querySelector("[data-pvwrap]");
+      if (wrap.style.display === "block") { wrap.style.display = "none"; btn.textContent = "샘플 5행 미리보기 — 키 없이"; return; }
+      btn.disabled = true; btn.textContent = "불러오는 중…";
+      try {
+        const res = await fetch("/api/preview/" + btn.dataset.pv);
+        const b = await res.json();
+        const rows = b.rows || [];
+        const tcols = rows.length ? Object.keys(rows[0]) : [];
+        wrap.querySelector("table").innerHTML =
+          "<thead><tr>" + tcols.map((c) => "<th>" + c + "</th>").join("") + "</tr></thead>" +
+          "<tbody>" + rows.map((r) =>
+            "<tr>" + tcols.map((c) => "<td>" + (r[c] ?? "<span style='color:var(--faint)'>∅</span>") + "</td>").join("") + "</tr>"
+          ).join("") + "</tbody>";
+        wrap.style.display = "block";
+        btn.textContent = "미리보기 접기";
+      } catch { btn.textContent = "불러오기 실패 — 다시 시도"; }
+      finally { btn.disabled = false; }
     });
     body.appendChild(row); body.appendChild(detail);
   }
@@ -432,6 +455,20 @@ function renderRows(rows) {
     ).join("") + "</tbody>";
   $("tableWrap").style.display = "block";
 }
+// problem+json → 사람이 읽는 한국어. 매핑 없으면 서버 detail 그대로.
+function friendly(status, body) {
+  const t = (body && body.title) || "";
+  if (t === "rotate confirmation required") return null; // 별도 확인 플로가 처리
+  if (status === 429 && t === "issuance rate limited")
+    return "같은 네트워크에서 발급이 잦았어요 — IP당 시간당 5회까지예요. 잠시 뒤 다시 시도해주세요.";
+  if (status === 429) return "오늘 호출 한도를 모두 썼어요 — 내일 00:00(KST)에 리셋됩니다.";
+  if (status === 401) return "키가 유효하지 않아요 — 위 '인증 · API 키'에서 발급하거나 다시 입력해주세요.";
+  if (status === 403) return "폐기된 키예요 — 같은 이메일로 재발급하면 새 키를 받을 수 있어요.";
+  if (status === 400 && t === "no time axis")
+    return "이 데이터는 시간축이 없어서 기간(from/to) 필터를 지원하지 않아요 — 기간을 비우고 호출해주세요.";
+  if (status === 400 && t === "unknown filter") return (body.detail || "") + " — 컬럼 이름 오타를 확인해주세요.";
+  return (body && (body.detail || body.title)) || "요청이 실패했어요.";
+}
 function showStatus(code, msg) {
   const s = $("respStatus");
   s.textContent = "HTTP " + code;
@@ -453,7 +490,7 @@ async function run() {
       renderRows(body.rows || []);
       $("rawJson").style.display = "none";
     } else {
-      showStatus(res.status, body.detail || body.title);
+      showStatus(res.status, friendly(res.status, body));
       $("tableWrap").style.display = "none";
       $("rawJson").style.display = "block";
     }
@@ -461,19 +498,40 @@ async function run() {
   finally { $("runBtn").disabled = false; refreshQuota(); }
 }
 
+// 발급은 2단계 — 등록된 이메일이면 서버가 409 를 주고, 버튼이 "재발급 확인" 모드로 바뀐다
+function resetIssueBtn() {
+  const b = $("issueBtn");
+  b.textContent = "발급"; b.dataset.confirm = ""; b.style.background = "";
+}
 $("issueBtn").addEventListener("click", async () => {
   $("issueErr").textContent = "";
+  const confirmRotate = $("issueBtn").dataset.confirm === "1";
   const res = await fetch("/api/keys", {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: $("email").value }),
+    body: JSON.stringify({ email: $("email").value, ...(confirmRotate ? { confirm_rotate: true } : {}) }),
   });
   const body = await res.json();
-  if (!res.ok) { $("issueErr").textContent = body.detail || body.title; return; }
+  if (res.status === 409 && body.title === "rotate confirmation required") {
+    $("issueErr").textContent =
+      "이 이메일에는 이미 키(" + body.key_prefix + "…)가 있어요. 재발급하면 그 키는 즉시 만료됩니다 — 계속하려면 버튼을 한 번 더 눌러주세요.";
+    const b = $("issueBtn");
+    b.textContent = "기존 키 만료하고 재발급"; b.dataset.confirm = "1"; b.style.background = "var(--red-ink, #b3423a)";
+    return;
+  }
+  resetIssueBtn();
+  if (!res.ok) { $("issueErr").textContent = friendly(res.status, body); return; }
   $("keyValue").textContent = body.key;
   $("keyReveal").style.display = "block";
   if (body.rotated) $("keyNote").textContent = "기존 키는 방금 폐기되었습니다. 새 키는 지금 한 번만 표시됩니다.";
   $("pKey").value = body.key;
   updatePreview(); refreshQuota();
+});
+$("email").addEventListener("input", () => { resetIssueBtn(); $("issueErr").textContent = ""; });
+$("keyEye").addEventListener("click", () => {
+  const k = $("pKey");
+  const show = k.type === "password";
+  k.type = show ? "text" : "password";
+  $("keyEye").textContent = show ? "가리기" : "보기";
 });
 $("copyKey").addEventListener("click", async () => {
   await navigator.clipboard.writeText($("keyValue").textContent);
