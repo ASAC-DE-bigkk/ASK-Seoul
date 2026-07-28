@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ASK: SEOUL — 서울 데이터 API 허브</title>
+<meta name="description" content="서울의 문화·행사 데이터를 수집·정제해 바로 조인할 수 있는 형태로 제공하는 데이터 API 허브. 매일 자동 갱신 · 행정동 단위 공간축 · 이메일만으로 즉시 키 발급.">
+<meta name="theme-color" content="#101828">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ASK: SEOUL">
+<meta property="og:title" content="ASK: SEOUL — 서울 데이터 API 허브">
+<meta property="og:description" content="찾던 서울 데이터, API 한 줄이면 됩니다. 미리보기는 키 없이 무료.">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23155eef'/%3E%3Ctext x='16' y='22' font-family='system-ui,sans-serif' font-size='15' font-weight='700' fill='%23fff' text-anchor='middle'%3EAS%3C/text%3E%3C/svg%3E">
 <style>
   :root {
     --bg:#f7f8fa; --panel:#ffffff; --hero:#101828; --hero-hi:#1d2939;
@@ -23,12 +31,14 @@
          -webkit-font-smoothing:antialiased; }
   a { color:inherit; text-decoration:none; }
   .wrap { max-width:1080px; margin:0 auto; padding:0 24px; }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:6px; }
+  .hero :focus-visible, .cta :focus-visible, .nav :focus-visible { outline-color:#84adff; }
 
   /* ─── top nav ─── */
   .nav { background:var(--hero); border-bottom:1px solid rgba(255,255,255,.07);
          position:sticky; top:0; z-index:20; }
   .nav-in { display:flex; align-items:center; gap:22px; height:56px; }
-  .brand { display:flex; align-items:center; gap:10px; cursor:default; }
+  .brand { display:flex; align-items:center; gap:10px; }
   .brand .logo { width:30px; height:30px; border-radius:7px;
                  background:linear-gradient(135deg,#155eef,#12b0e8);
                  display:flex; align-items:center; justify-content:center;
@@ -45,9 +55,15 @@
               color:var(--hero-ink); white-space:nowrap; }
   .env-pill i { width:6px; height:6px; border-radius:50%; background:#f79009; }
   .nav-cta { font-size:12.5px; font-weight:600; color:#fff; background:var(--accent);
-             padding:7px 14px; border-radius:6px; }
+             padding:7px 14px; border-radius:6px; white-space:nowrap; }
   .nav-cta:hover { background:var(--accent-deep); }
-  @media (max-width:760px){ .nav-links, .env-pill { display:none; } }
+  /* 좁은 화면에서도 카탈로그 진입구는 남긴다 — 나머지만 접는다 */
+  @media (max-width:860px){ .env-pill { display:none; } .nav-in { gap:12px; } }
+  @media (max-width:760px){
+    .nav-links a { display:none; }
+    .nav-links a.keep { display:block; padding:6px 10px; }
+    .brand .sub { display:none; }
+  }
 
   /* ─── hero ─── */
   .hero { background:var(--hero); color:#fff; padding:64px 0 72px;
@@ -55,7 +71,7 @@
                            radial-gradient(500px 260px at 12% 110%, rgba(18,176,232,.10), transparent); }
   .hero .eyebrow { font-size:11px; font-weight:700; letter-spacing:.14em; color:#84adff; margin-bottom:14px; }
   .hero h1 { font-size:clamp(26px, 4.4vw, 40px); font-weight:800; letter-spacing:-.02em;
-             line-height:1.25; max-width:640px; }
+             line-height:1.25; max-width:640px; text-wrap:balance; }
   .hero .sub { font-size:15px; color:var(--hero-ink); margin-top:14px; max-width:560px; }
   .hero .sub b { color:#fff; font-weight:600; }
 
@@ -86,11 +102,12 @@
   .stat { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;
           box-shadow:var(--shadow-sm); }
   .stat .v { font-size:22px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+  .stat .v .u { font-size:12px; font-weight:600; color:var(--muted); }
   .stat .k { font-size:11.5px; color:var(--muted); margin-top:2px; }
 
   /* ─── sections ─── */
   section { padding:52px 0 0; }
-  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; }
+  .sec-head { display:flex; align-items:baseline; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
   .sec-head h2 { font-size:19px; font-weight:700; letter-spacing:-.01em; }
   .sec-head .hint { font-size:12px; color:var(--faint); }
   .sec-head .more { margin-left:auto; font-size:12.5px; font-weight:600; color:var(--accent-deep); }
@@ -101,8 +118,7 @@
   .dom { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px 16px;
          box-shadow:var(--shadow-xs); display:flex; flex-direction:column; gap:2px;
          transition:border-color .12s, box-shadow .12s; }
-  .dom.live { cursor:pointer; }
-  .dom.live:hover { border-color:var(--accent-line); box-shadow:var(--shadow-sm); }
+  a.dom:hover { border-color:var(--accent-line); box-shadow:var(--shadow-sm); }
   .dom .t { font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:7px; }
   .dom .t i { width:7px; height:7px; border-radius:50%; background:#12b76a; flex:none; }
   .dom.soon .t i { background:var(--line-strong); }
@@ -115,9 +131,9 @@
   /* product cards */
   .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
   .card { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;
-          box-shadow:var(--shadow-xs); cursor:pointer; display:flex; flex-direction:column; gap:8px;
+          box-shadow:var(--shadow-xs); display:flex; flex-direction:column; gap:8px;
           transition:border-color .12s, box-shadow .12s, transform .12s; }
-  .card:hover { border-color:var(--accent-line); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  a.card:hover { border-color:var(--accent-line); box-shadow:var(--shadow-md); transform:translateY(-1px); }
   .card .top { display:flex; align-items:flex-start; gap:10px; }
   .card .t { font-weight:700; font-size:14px; letter-spacing:-.01em; }
   .card .t small { display:block; font-family:var(--mono); font-size:10.5px; font-weight:400;
@@ -132,6 +148,19 @@
                 font-variant-numeric:tabular-nums; border-top:1px solid var(--line); padding-top:9px; }
   .card .meta b { color:var(--ink); font-weight:600; }
   .card .meta .free { margin-left:auto; color:var(--green-ink); font-weight:600; }
+
+  /* skeleton · 상태 */
+  .sk { position:relative; overflow:hidden; background:#eef0f3; border-radius:5px; color:transparent; }
+  .sk::after { content:""; position:absolute; inset:0; transform:translateX(-100%);
+               background:linear-gradient(90deg, transparent, rgba(255,255,255,.7), transparent);
+               animation:shimmer 1.3s infinite; }
+  @keyframes shimmer { to { transform:translateX(100%); } }
+  .sk-card { height:140px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  .sk-dom { height:104px; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+  .state { grid-column:1/-1; padding:22px; text-align:center; font-size:12.5px; color:var(--muted);
+           border:1px dashed var(--line-strong); border-radius:8px; background:var(--panel); }
+  .state a { color:var(--accent-deep); font-weight:600; text-decoration:underline;
+             text-underline-offset:3px; }
 
   /* how it works */
   .how { display:grid; grid-template-columns:1fr 1.15fr; gap:24px; align-items:start; }
@@ -176,21 +205,28 @@
   .foot-in b { color:var(--muted); font-weight:600; }
   .foot-in code { font-family:var(--mono); font-size:10.5px; }
   .foot-in .r { margin-left:auto; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior:auto; }
+    * { animation-duration:.01ms !important; animation-iteration-count:1 !important;
+        transition-duration:.01ms !important; }
+    a.card:hover { transform:none; }
+  }
 </style>
 </head>
 <body>
 
 <nav class="nav">
   <div class="wrap nav-in">
-    <div class="brand"><span class="logo">AS</span><span class="nm">ASK SEOUL<span class="sub">Data API Hub</span></span></div>
+    <a class="brand" href="/" aria-label="ASK SEOUL 홈"><span class="logo" aria-hidden="true">AS</span><span class="nm">ASK SEOUL<span class="sub">Data API Hub</span></span></a>
     <div class="nav-links">
-      <a class="active" href="/">홈</a>
-      <a href="/catalog">카탈로그</a>
+      <a href="/">홈</a>
+      <a class="keep" href="/catalog">카탈로그</a>
       <a href="/catalog#playground">플레이그라운드</a>
       <a href="/catalog#auth">API 키</a>
     </div>
     <span class="spacer"></span>
-    <span class="env-pill"><i></i>LOCAL · 프로토타입</span>
+    <span class="env-pill"><i aria-hidden="true"></i>LOCAL · 프로토타입</span>
     <a class="nav-cta" href="/catalog#auth">무료로 시작</a>
   </div>
 </nav>
@@ -203,7 +239,7 @@
        매일 새벽 자동 갱신 · 행정동 단위 공간축 · <b>키 발급부터 첫 호출까지 1분</b>.</p>
     <form class="search-hero" id="heroSearch">
       <div class="box">
-        <span class="ico"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span>
+        <span class="ico" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span>
         <input type="search" id="heroQ" placeholder="어떤 데이터를 찾으세요? — 행사, 혼잡, 박스오피스…" aria-label="데이터 검색">
       </div>
       <button type="submit">검색</button>
@@ -220,10 +256,10 @@
 
 <div class="stats wrap">
   <div class="stats-in">
-    <div class="stat"><div class="v" id="statProducts">—</div><div class="k">데이터 제품 · 제공 중</div></div>
-    <div class="stat"><div class="v" id="statRows">—</div><div class="k">총 데이터 행</div></div>
-    <div class="stat"><div class="v">03:00 <span style="font-size:12px;font-weight:600;color:var(--muted)">KST</span></div><div class="k">매일 자동 갱신</div></div>
-    <div class="stat"><div class="v">1,000<span style="font-size:12px;font-weight:600;color:var(--muted)">회/일</span></div><div class="k">무료 호출 한도 · 키당</div></div>
+    <div class="stat"><div class="v sk" id="statProducts">00종</div><div class="k">데이터 제품 · 제공 중</div></div>
+    <div class="stat"><div class="v sk" id="statRows">000,000</div><div class="k">총 데이터 행</div></div>
+    <div class="stat"><div class="v sk" id="statFresh">0시간 전</div><div class="k" id="statFreshK">마지막 갱신</div></div>
+    <div class="stat"><div class="v">1,000<span class="u">회/일</span></div><div class="k">무료 호출 한도 · 키당</div></div>
   </div>
 </div>
 
@@ -231,13 +267,19 @@
 
   <section>
     <div class="sec-head"><h2>도메인</h2><span class="hint">서울을 여섯 각도로</span></div>
-    <div class="domains" id="domains"></div>
+    <div class="domains" id="domains">
+      <div class="sk sk-dom"></div><div class="sk sk-dom"></div><div class="sk sk-dom"></div>
+      <div class="sk sk-dom"></div><div class="sk sk-dom"></div><div class="sk sk-dom"></div>
+    </div>
   </section>
 
   <section>
     <div class="sec-head"><h2>데이터 제품</h2><span class="hint">질문에 바로 답하는 형태로 정제됨</span>
-      <a class="more" href="/catalog">카탈로그 전체 보기 →</a></div>
-    <div class="cards" id="cards"></div>
+      <a class="more" href="/catalog" id="allLink">카탈로그 전체 보기 →</a></div>
+    <div class="cards" id="cards">
+      <div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div>
+      <div class="sk sk-card"></div><div class="sk sk-card"></div><div class="sk sk-card"></div>
+    </div>
   </section>
 
   <section>
@@ -258,7 +300,7 @@
         </div></div>
       </div>
       <div class="codebox">
-        <div class="bar"><i></i><span>TERMINAL</span></div>
+        <div class="bar"><i aria-hidden="true"></i><span>TERMINAL</span></div>
         <pre><span class="c"># 1. 샘플 먼저 — 키 없이</span>
 <span class="g">curl</span> <span class="b" id="cbOrigin1">…</span>/api/preview/gold_culture_event_schedule
 
@@ -290,7 +332,7 @@
 <footer>
   <div class="wrap foot-in">
     <span><b>Serving Contract v1.1</b></span>
-    <span>갱신 일 1회 · 04:30 KST</span>
+    <span>갱신 일 1회 · 새벽 배치 후 발행</span>
     <span>오류 규약 <code>problem+json</code></span>
     <span class="r">ASK-Seoul#58 프로토타입 · LOCAL</span>
   </div>
@@ -299,8 +341,10 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const nf = new Intl.NumberFormat("ko-KR");
+const HOME_CARDS = 6;  // 홈은 큐레이션 — 나머지는 카탈로그에서
 
-// catalog.html 과 동일한 표시명 사전 — 제품이 늘면 양쪽 갱신 (프로토타입 허용 중복)
+// catalog.html 과 동일한 표시명 사전 — _catalog 에 표시명 컬럼이 없어 클라이언트 보유.
+// 제품이 늘면 양쪽 갱신 필요 (계약에 display 필드가 생기면 서버 응답으로 일원화)
 const DISPLAY = {
   culture_activity_by_dong: { title:"행정동별 문화 활동", unit:"행정동 × 날짜" },
   culture_calendar_density: { title:"구별 행사 캘린더 밀집도", unit:"자치구 × 날짜" },
@@ -319,10 +363,27 @@ const DOMAINS = [
   { id:"traffic",    name:"교통",     desc:"도로 소통·사고" },
 ];
 
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const domainOf = (p) => (p.product_id || p.name || "").replace(/^gold_/, "").split("_")[0];
 const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
 
-// 코드 예시의 오리진을 실제 접속 주소로
+// 신선도는 카탈로그가 내려주는 exported_at 실측 — 고정 문구 금지(파이프라인 시각과 어긋난다)
+function relTime(iso) {
+  const t = new Date(iso);
+  if (isNaN(t)) return null;
+  const mins = Math.floor((Date.now() - t.getTime()) / 60000);
+  if (mins < 1) return "방금";
+  if (mins < 60) return mins + "분 전";
+  const h = Math.floor(mins / 60);
+  if (h < 48) return h + "시간 전";
+  return Math.floor(h / 24) + "일 전";
+}
+function kstStamp(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 16).replace("T", " ") + " KST";
+}
+
 for (const id of ["cbOrigin1", "cbOrigin2", "cbOrigin3"]) $(id).textContent = location.origin;
 
 $("heroSearch").addEventListener("submit", (e) => {
@@ -331,43 +392,75 @@ $("heroSearch").addEventListener("submit", (e) => {
   location.href = q ? "/catalog?q=" + encodeURIComponent(q) : "/catalog";
 });
 
+function setStat(id, text, klass) {
+  const el = $(id);
+  el.classList.remove("sk");
+  el.innerHTML = text;
+  if (klass) el.className = "v " + klass;
+}
+
+function failState(id, msg) {
+  $(id).innerHTML = "<div class='state'>" + msg +
+    " — <a href='/catalog'>카탈로그에서 직접 보기</a></div>";
+}
+
 async function boot() {
-  let products = [];
+  let products = null;
   try {
     const res = await fetch("/api/catalog");
+    if (!res.ok) throw new Error("HTTP " + res.status);
     products = (await res.json()).products || [];
-  } catch {}
+  } catch {
+    setStat("statProducts", "—"); setStat("statRows", "—"); setStat("statFresh", "—");
+    $("statFreshK").textContent = "마지막 갱신 · 확인 불가";
+    failState("domains", "도메인 정보를 불러오지 못했습니다");
+    failState("cards", "제품 목록을 불러오지 못했습니다");
+    return;
+  }
 
-  // 통계
-  $("statProducts").textContent = products.length ? products.length + "종" : "—";
+  // ── 통계
+  setStat("statProducts", products.length + "<span class='u'>종</span>");
   const totalRows = products.reduce((a, p) => a + (p.row_count || 0), 0);
-  $("statRows").textContent = totalRows ? nf.format(totalRows) : "—";
+  setStat("statRows", nf.format(totalRows));
 
-  // 도메인 타일
+  const stamps = products.map((p) => p.exported_at).filter(Boolean).sort();
+  const newest = stamps[stamps.length - 1];
+  const rel = newest ? relTime(newest) : null;
+  setStat("statFresh", rel || "—");
+  $("statFreshK").textContent = newest ? "마지막 갱신 · " + kstStamp(newest) : "마지막 갱신 · 정보 없음";
+  if (newest) $("statFresh").title = new Date(newest).toISOString();
+
+  // ── 도메인 (제공 중인 것 먼저)
   const counts = {};
   for (const p of products) counts[domainOf(p)] = (counts[domainOf(p)] || 0) + 1;
-  $("domains").innerHTML = DOMAINS.map((d) => {
+  const ordered = [...DOMAINS].sort((a, b) => (counts[b.id] || 0) - (counts[a.id] || 0));
+  $("domains").innerHTML = ordered.map((d) => {
     const n = counts[d.id] || 0;
-    return "<div class='dom " + (n ? "live" : "soon") + "'" +
-      (n ? " onclick=\"location.href='/catalog'\"" : "") + ">" +
-      "<div class='t'><i></i>" + d.name + "</div>" +
-      "<div class='d'>" + d.desc + "</div>" +
-      "<span class='tag'>" + (n ? n + "종 제공 중" : "준비 중") + "</span></div>";
+    const inner =
+      "<span class='t'><i aria-hidden='true'></i>" + esc(d.name) + "</span>" +
+      "<span class='d'>" + esc(d.desc) + "</span>" +
+      "<span class='tag'>" + (n ? n + "종 제공 중" : "곧 합류") + "</span>";
+    return n
+      ? "<a class='dom' href='/catalog'>" + inner + "</a>"
+      : "<div class='dom soon'>" + inner + "</div>";
   }).join("");
 
-  // 제품 카드 — 행수 큰 순으로 전시
+  // ── 제품 카드 (행수 큰 순 · 홈은 6장까지)
   const sorted = [...products].sort((a, b) => (b.row_count || 0) - (a.row_count || 0));
-  $("cards").innerHTML = sorted.map((p) => {
+  const shown = sorted.slice(0, HOME_CARDS);
+  $("allLink").textContent = "전체 " + products.length + "종 보기 →";
+  if (!shown.length) { failState("cards", "아직 공개된 제품이 없습니다"); return; }
+  $("cards").innerHTML = shown.map((p) => {
     const d = DISPLAY[p.product_id] || {};
-    return "<div class='card' onclick=\"location.href='/catalog?q=" + encodeURIComponent(p.name) + "'\">" +
-      "<div class='top'><div class='t'>" + titleOf(p) + "<small>" + p.name + "</small></div>" +
-      (p.time_axis ? "<span class='badge'>" + p.time_axis + "</span>" : "<span class='badge dim'>명부형</span>") +
-      "</div>" +
-      "<div class='q'>" + (p.product_question || "—") + "</div>" +
-      "<div class='meta'><span><b>" + nf.format(p.row_count || 0) + "</b> 행</span>" +
-      (d.unit ? "<span>" + d.unit + "</span>" : "") +
-      "<span class='free'>미리보기 무료</span></div></div>";
-  }).join("") || "<div style='color:var(--faint);font-size:13px'>카탈로그를 불러오지 못했습니다 — <a href='/catalog' style='color:var(--accent-deep);font-weight:600'>카탈로그로 이동</a></div>";
+    return "<a class='card' href='/catalog?q=" + encodeURIComponent(p.name) + "'>" +
+      "<span class='top'><span class='t'>" + esc(titleOf(p)) + "<small>" + esc(p.name) + "</small></span>" +
+      (p.time_axis ? "<span class='badge'>" + esc(p.time_axis) + "</span>"
+                   : "<span class='badge dim'>명부형</span>") + "</span>" +
+      "<span class='q'>" + esc(p.product_question || "—") + "</span>" +
+      "<span class='meta'><span><b>" + nf.format(p.row_count || 0) + "</b> 행</span>" +
+      (d.unit ? "<span>" + esc(d.unit) + "</span>" : "") +
+      "<span class='free'>미리보기 무료</span></span></a>";
+  }).join("");
 }
 boot();
 </script>
