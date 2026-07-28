@@ -37,9 +37,28 @@ Trino 는 `http://trino:8080` — **Docker 내부 주소라 Cloudflare Worker �
 그래서 콘솔이 파이프라인 품질을 보려면 요약을 밀어 넣는 수밖에 없다. 다행히 SLO 마트는
 **날짜 1행**이라 도메인 6개 × 1년 = 2,200행 — 웨어하우스를 옮기는 게 아니라 요약 한 줌이다.
 
-**아직 실적재는 없다.** 팀 D1 쓰기가 금지돼 있어 `fixtures/slo_sample.sql` 의 **합성 14일치**를
-시드한다. 모든 행에 `is_sample=1` 이 박혀 있고 화면 상단에 경고 배너가 뜬다 —
-이 값으로 운영 판단을 하면 안 된다. 실적재 경로(멘토 게이트)가 붙으면 픽스처는 지운다.
+## 실적재
+
+```bash
+python scripts/load_slo.py            # Trino 조회 → fixtures/slo_live.sql → 로컬 D1 적용
+python scripts/load_slo.py --dry-run  # SQL 만 생성
+TRINO_URL=http://127.0.0.1:30586 python scripts/load_slo.py   # 포트가 다르면
+```
+
+의존성 없이 Trino REST(`v1/statement`)를 직접 호출한다. 실측(2026-07-28):
+`iceberg_dev.culture.gold_culture_slo_daily` **29행 · 2026-06-30 ~ 07-28**.
+
+**이 스크립트는 임시다.** 정규 경로는 culture DAG 의 export task 여야 하고(팀 D1 쓰기 =
+멘토 게이트), 그때까지 콘솔을 실측으로 채우는 수단이자 **export task 가 무엇을 하면 되는지의
+실행 가능한 명세**다. `fixtures/slo_sample.sql` 은 Trino 가 없는 사람을 위한 폴백으로 남긴다
+(`npm run seed`) — 모든 행에 `is_sample=1` 이 박혀 화면에 경고 배너가 뜬다.
+
+### 초록 위장을 놓치지 않는다
+
+`green_disguise_runs` = Airflow 는 success 인데 `expected=0` 인 run. **SLO 가 통과로
+계산되는 날**이라 실패 목록에 안 잡힌다 — 그게 함정이다. 그래서 콘솔은 이걸
+① KPI 로 세우고 ② 캘린더에서 초록이 아니라 **붉은 테두리**로 칠하고 ③ '살펴야 할 날'에
+실패와 나란히 올린다. 실적재 결과 **6/30·7/7 두 건**이 잡혔다(7/7 은 설계 문서가 적어 둔 실사례).
 
 ## 콘솔이 드러내는 실측 하나
 

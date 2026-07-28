@@ -118,6 +118,10 @@
   .cal .d.pass { background:var(--ok-soft); color:var(--ok); border-color:#b7e4cb; }
   .cal .d.partial { background:var(--amber-soft); color:var(--amber-ink); border-color:#fedf89; }
   .cal .d.fail { background:var(--red-soft); color:var(--red-ink); border-color:#fecdc9; }
+  /* 초록 위장 — 통과로 계산된 날이라 초록이지만, 실제로는 빈 run 이다.
+     초록 그대로 두면 함정을 그대로 재현하게 되므로 붉은 테두리로 표시한다. */
+  .cal .d.disguise { background:var(--ok-soft); color:var(--red-ink); border-color:var(--red-ink);
+                     border-width:1.5px; }
   .cal-legend { display:flex; gap:14px; margin-top:10px; font-size:11.5px; color:var(--muted); }
 
   .bars { display:flex; align-items:flex-end; gap:4px; height:70px; margin-top:6px; }
@@ -180,7 +184,7 @@
         <div class="bd" id="domains"></div>
       </div>
       <div class="card">
-        <div class="hd"><h3>나쁜 날 상세</h3><p>정기런 실패·계약 위반이 있던 날만</p></div>
+        <div class="hd"><h3>살펴야 할 날</h3><p>정기런 실패 + <b>초록 위장</b>(통과로 보였지만 빈 run)</p></div>
         <div class="bd" id="badDays"></div>
       </div>
     </div>
@@ -284,27 +288,35 @@ function render(d) {
   const slo = d.pipeline.slo, doms = d.pipeline.domains;
   const withSlo = doms.filter((x) => x.has_slo).length;
   const passed = slo.filter((r) => r.scheduled_slo_passed).length;
-  const badDays = slo.filter((r) => !r.scheduled_slo_passed);
   const viol = slo.reduce((a, r) => a + (r.violation_count || 0), 0);
+  // 초록 위장 — Airflow success 인데 expected=0. **통과로 보이는 날**이라 실패 목록에 안 잡힌다.
+  // 그래서 별도 지표로 세우고, 아래 '살펴야 할 날'에도 따로 표시한다(7/7 실사례).
+  const disguise = slo.reduce((a, r) => a + (r.green_disguise_runs || 0), 0);
+  // 정기런 실패 + 초록 위장 = 사람이 들여다봐야 하는 날
+  const badDays = slo.filter((r) => !r.scheduled_slo_passed || (r.green_disguise_runs || 0) > 0);
   kpis("pipeKpis", [
     ["Scheduled SLO", slo.length ? Math.round(passed / slo.length * 100) + "%" : "—",
      slo.length ? passed + "/" + slo.length + "일 정기런 통과" : "데이터 없음",
      slo.length && passed / slo.length < 0.9 ? "bad" : "good"],
     ["Domains", withSlo + " / " + doms.length, "SLO 마트 보유 도메인", withSlo < doms.length ? "bad" : "good"],
     ["Violations", nf.format(viol), "계약 위반 누적", viol > 0 ? "bad" : "good"],
-    ["Bad days", nf.format(badDays.length), "정기런이 깨진 날", badDays.length > 0 ? "bad" : "good"],
+    ["초록 위장", nf.format(disguise), "통과로 보였지만 빈 run", disguise > 0 ? "bad" : "good"],
   ]);
 
   $("cal").innerHTML = slo.length
     ? "<div class='cal'>" + slo.map((r) => {
-        const cls = r.scheduled_slo_passed ? "pass" : (r.eod_slo_passed ? "partial" : "fail");
+        // 초록 위장은 통과로 계산된 날이라 pass 로 묻힌다 — 그게 바로 함정이라 먼저 분기한다
+        const cls = (r.green_disguise_runs || 0) > 0 ? "disguise"
+          : r.scheduled_slo_passed ? "pass" : (r.eod_slo_passed ? "partial" : "fail");
         return "<div class='d " + cls + "' title='" + esc(r.event_date) + " · 커버리지 " +
-          (r.best_coverage_pct ?? "—") + "% · 실패 데이터셋 " + (r.failed_dataset_count ?? 0) + "'>" +
+          (r.best_coverage_pct ?? "—") + "% · 실패 데이터셋 " + (r.failed_dataset_count ?? 0) +
+          ((r.green_disguise_runs || 0) > 0 ? " · 초록 위장 " + r.green_disguise_runs : "") + "'>" +
           esc(md(r.event_date)) + "</div>";
       }).join("") + "</div>" +
       "<div class='cal-legend'><span><span class='pill ok'>초록</span> 정기런 통과</span>" +
       "<span><span class='pill warn'>노랑</span> 수동 복구로 살림</span>" +
-      "<span><span class='pill bad'>빨강</span> 그날 데이터 없음</span></div>"
+      "<span><span class='pill bad'>빨강</span> 그날 데이터 없음</span>" +
+      "<span><b style='color:var(--red-ink)'>붉은 테두리</b> 초록 위장 — 통과로 계산됐지만 빈 run</span></div>"
     : "<div class='empty'>SLO 데이터가 없습니다</div>";
 
   $("domains").innerHTML = table([
@@ -316,12 +328,14 @@ function render(d) {
 
   $("badDays").innerHTML = table([
     { t:"date", get:(r) => esc(r.event_date) },
-    { t:"eod", get:(r) => r.eod_slo_passed
-        ? "<span class='pill warn'>복구됨</span>" : "<span class='pill bad'>실패</span>" },
+    { t:"무슨 일", get:(r) => (r.green_disguise_runs || 0) > 0
+        ? "<span class='pill bad'>초록 위장 " + r.green_disguise_runs + "</span>"
+        : (r.eod_slo_passed ? "<span class='pill warn'>복구됨</span>"
+                            : "<span class='pill bad'>실패</span>") },
     { t:"cov", r:true, get:(r) => (r.best_coverage_pct ?? "—") + "%" },
     { t:"failed", r:true, get:(r) => r.failed_dataset_count },
     { t:"viol", r:true, get:(r) => r.violation_count },
-  ], badDays, "정기런이 깨진 날이 없습니다");
+  ], badDays, "살펴야 할 날이 없습니다");
 
   // ── 서빙
   const s = d.serving;
