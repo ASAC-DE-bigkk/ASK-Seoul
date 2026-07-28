@@ -38,6 +38,68 @@ const newKey = () => {
 // 쿼터의 하루 경계는 KST — 파이프라인 시간축과 동일 규약
 const kstDay = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
+// ── 운영자용 서빙 품질 (#58)
+// 경계: 여기는 **서빙 품질**만 본다 — 외부에 잘 나가고 있나(호출량·실패·조용한 0행).
+// 파이프라인 품질(SLO 마트·dbt test·DAG run)은 팀 대시보드 소관이다. 화면 하나로 합치자고
+// 데이터를 스택 건너로 복사하지 않는다 — 그 복사 경로가 곧 새 고장 지점이 된다.
+//
+// 인증: 지금은 공유 토큰(OPS_TOKEN)이다. 이건 "누가 봤나"를 남기지 못하는 약한 인증이라
+// 공개 배포 시에는 Cloudflare Access 나 org OAuth 로 **반드시 교체**해야 한다(멘토 게이트).
+// 토큰이 없으면 503 으로 기능을 끈다 — 인증 없는 운영 화면이 실수로 열리는 것보다 낫다.
+const OPS_DEFAULT_DAYS = 7;
+const OPS_MAX_DAYS = 90;
+
+function timingSafeEqual(a, b) {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  // 길이가 달라도 조기 반환하지 않는다 — 비교 시간으로 길이를 알려주지 않기 위해
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}
+
+function opsGate(env, request) {
+  const token = String(env.OPS_TOKEN || "").trim();
+  if (!token) return problem(503, "ops disabled", "OPS_TOKEN 미설정 — .dev.vars 에 설정하면 켜진다");
+  const got = (request.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (!got || !timingSafeEqual(got, token))
+    return problem(401, "unauthorized", "운영자 토큰이 필요하다");
+  return null;
+}
+
+async function handleOps(env, params) {
+  const days = Math.min(OPS_MAX_DAYS, Math.max(1, parseInt(params.get("days"), 10) || OPS_DEFAULT_DAYS));
+  const since = `-${days} days`;
+  const rows = async (sql, ...bind) => (await env.DB.prepare(sql).bind(...bind).all()).results;
+
+  // 질문은 scripts/usage-report.sql 과 같다 — 거긴 SQL, 여긴 화면. 정의가 갈리지 않게 문구도 맞춘다.
+  const [routes, daily, products, filters, failures, empty, keys] = await Promise.all([
+    rows("SELECT route, COUNT(*) AS calls, SUM(status >= 400) AS errors, ROUND(AVG(ms),1) AS avg_ms " +
+         "FROM _request_log WHERE ts >= datetime('now', ?) GROUP BY route ORDER BY calls DESC", since),
+    rows("SELECT substr(ts,1,10) AS day, COUNT(*) AS calls, COUNT(DISTINCT key_hash) AS keys_used " +
+         "FROM _request_log WHERE ts >= datetime('now', ?) GROUP BY day ORDER BY day", since),
+    rows("SELECT table_name, SUM(route='preview') AS previews, SUM(route='data') AS calls, " +
+         "ROUND(AVG(row_count),1) AS avg_rows FROM _request_log " +
+         "WHERE table_name IS NOT NULL AND ts >= datetime('now', ?) " +
+         "GROUP BY table_name ORDER BY calls DESC, previews DESC", since),
+    rows("SELECT filters, COUNT(*) AS uses FROM _request_log " +
+         "WHERE filters IS NOT NULL AND ts >= datetime('now', ?) GROUP BY filters ORDER BY uses DESC LIMIT 12", since),
+    rows("SELECT status, route, table_name, COUNT(*) AS hits FROM _request_log " +
+         "WHERE status >= 400 AND ts >= datetime('now', ?) GROUP BY status, route, table_name " +
+         "ORDER BY hits DESC LIMIT 12", since),
+    rows("SELECT table_name, filters, COUNT(*) AS empty_responses FROM _request_log " +
+         "WHERE status = 200 AND row_count = 0 AND ts >= datetime('now', ?) " +
+         "GROUP BY table_name, filters ORDER BY empty_responses DESC LIMIT 12", since),
+    rows("SELECT substr(key_hash,1,8) AS key_id, COUNT(*) AS calls, " +
+         "COUNT(DISTINCT substr(ts,1,10)) AS active_days, MIN(substr(ts,1,10)) AS first_day, " +
+         "MAX(substr(ts,1,10)) AS last_day FROM _request_log " +
+         "WHERE key_hash IS NOT NULL AND ts >= datetime('now', ?) " +
+         "GROUP BY key_hash ORDER BY calls DESC LIMIT 12", since),
+  ]);
+
+  return json({ window_days: days, generated_at: new Date().toISOString(),
+                routes, daily, products, filters, failures, empty, keys });
+}
+
 async function issueKey(env, request) {
   let body;
   try {
@@ -243,6 +305,11 @@ async function route(request, env, url, trace) {
   }
   if (request.method !== "GET") return problem(405, "method not allowed", "조회 전용 API");
   if (path === "/api/catalog") { trace.route = "catalog"; return handleCatalog(env); }
+  // 운영 조회는 _request_log 를 읽기만 한다 — 자기 자신을 로그에 남기지 않는다(관측이 관측을 오염시키지 않게)
+  if (path === "/api/ops/summary") {
+    const denied = opsGate(env, request);
+    return denied || handleOps(env, url.searchParams);
+  }
 
   const previewMatch = path.match(/^\/api\/preview\/([^/]+)$/);
   if (previewMatch) {

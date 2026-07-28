@@ -1,2 +1,4 @@
 node_modules/
 .wrangler/
+# 운영자 토큰 등 로컬 시크릿 — 절대 커밋하지 않는다
+.dev.vars
