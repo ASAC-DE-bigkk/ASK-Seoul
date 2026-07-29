@@ -1,9 +1,9 @@
 {
   "name": "ask-seoul-serving-gateway",
   "private": true,
-  "description": "V1 마켓플레이스 프로토타입 — 키 발급 + 쿼터 + culture 데이터 API (ASK-Seoul#58, 로컬 전용)",
+  "description": "V1 마켓플레이스 프로토타입 — 키 발급 + 쿼터 + 6개 도메인 서빙 API (ASK-Seoul#58, 로컬 전용)",
   "scripts": {
-    "seed": "wrangler d1 execute ask-seoul-dev-d1 --local --file=migrations/0001_keys_usage.sql && wrangler d1 execute ask-seoul-dev-d1 --local --file=migrations/0002_request_log.sql && wrangler d1 execute ask-seoul-dev-d1 --local --file=fixtures/seed.sql",
+    "seed": "wrangler d1 execute ask-seoul-dev-d1 --local --file=migrations/0001_keys_usage.sql && wrangler d1 execute ask-seoul-dev-d1 --local --file=migrations/0002_request_log.sql && wrangler d1 execute ask-seoul-dev-d1 --local --file=migrations/0003_burst.sql && wrangler d1 execute ask-seoul-dev-d1 --local --file=fixtures/seed.sql",
     "dev": "wrangler dev",
     "usage": "wrangler d1 execute ask-seoul-dev-d1 --local --file=scripts/usage-report.sql"
   },
