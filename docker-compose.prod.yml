@@ -1,0 +1,37 @@
+name: elt-infra-prod
+
+x-prod-env-file: &prod-env-file
+  env_file: !override
+    - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+
+services:
+  postgres:
+    <<: *prod-env-file
+
+  trino:
+    <<: *prod-env-file
+    volumes: !override
+      - ./trino/catalog-prod:/etc/trino/catalog:ro
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
+      - ./trino/resource-groups.properties:/etc/trino/resource-groups.properties:ro
+      - ./trino/resource-groups.json:/etc/trino/resource-groups.json:ro
+
+  airflow-init:
+    <<: *prod-env-file
+
+  airflow-apiserver:
+    <<: *prod-env-file
+
+  airflow-scheduler:
+    <<: *prod-env-file
+
+  airflow-dag-processor:
+    <<: *prod-env-file
+
+  airflow-triggerer:
+    <<: *prod-env-file
+
+networks:
+  elt_net:
+    name: elt-infra-prod-net

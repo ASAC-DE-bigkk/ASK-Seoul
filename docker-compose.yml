@@ -188,7 +188,11 @@ services:
           --email "$${AIRFLOW_ADMIN_EMAIL}" \
           --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
         /entrypoint airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"
+        /entrypoint airflow pools set trino_traffic_ingest 1 "Serialize Traffic Bronze materialization"
+        /entrypoint airflow pools set trino_traffic_transform 1 "Serialize Traffic transform and Gold writes"
         /entrypoint airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"
+        /entrypoint airflow pools set trino_weather_legacy_heavy 1 "Serialize legacy Weather transform writes"
+        /entrypoint airflow pools set trino_weather_recovery_heavy 1 "Serialize Weather observation recovery"
         /entrypoint airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"
     user: "0:0"
     depends_on:

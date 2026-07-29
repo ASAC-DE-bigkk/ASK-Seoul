@@ -81,7 +81,11 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
     def test_airflow_pools_are_bootstrapped_idempotently(self):
         expected_pool_commands = {
             'airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"',
+            'airflow pools set trino_traffic_ingest 1 "Serialize Traffic Bronze materialization"',
+            'airflow pools set trino_traffic_transform 1 "Serialize Traffic transform and Gold writes"',
             'airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"',
+            'airflow pools set trino_weather_legacy_heavy 1 "Serialize legacy Weather transform writes"',
+            'airflow pools set trino_weather_recovery_heavy 1 "Serialize Weather observation recovery"',
             'airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"',
         }
         for command in expected_pool_commands:
