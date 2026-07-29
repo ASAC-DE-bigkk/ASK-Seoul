@@ -1,0 +1,250 @@
+{
+ "citydata_air_anomaly": {
+  "title": "대기질 이상 탐지",
+  "unit": "장소 = 1행"
+ },
+ "citydata_air_trend": {
+  "title": "대기질 추세(실시간)",
+  "unit": "장소 = 1행"
+ },
+ "citydata_charger_availability": {
+  "title": "EV 충전소 가용 현황",
+  "unit": "장소 × 충전소"
+ },
+ "citydata_cmrcl_daily": {
+  "title": "장소별 일 소비 활력",
+  "unit": "장소 × 날짜"
+ },
+ "citydata_hot_commerce": {
+  "title": "뜨는 상권 지수",
+  "unit": "장소 = 1행"
+ },
+ "citydata_place_latest": {
+  "title": "장소 최신 크로스 신호",
+  "unit": "장소 = 1행"
+ },
+ "citydata_place_scorecard": {
+  "title": "장소 종합 스코어카드",
+  "unit": "장소 = 1행"
+ },
+ "citydata_ppltn_anomaly": {
+  "title": "혼잡 이상 탐지",
+  "unit": "장소 = 1행"
+ },
+ "citydata_ppltn_daily": {
+  "title": "장소별 하루 혼잡",
+  "unit": "장소 × 날짜"
+ },
+ "citydata_ppltn_dow_hour": {
+  "title": "요일×시간 혼잡 롤업",
+  "unit": "장소 × 요일 × 시간"
+ },
+ "citydata_ppltn_forecast": {
+  "title": "주말 혼잡 예보",
+  "unit": "장소 × 주말 × 시간"
+ },
+ "citydata_ppltn_hourly": {
+  "title": "장소별 시간 혼잡",
+  "unit": "장소 × 시간"
+ },
+ "citydata_ppltn_trend": {
+  "title": "붐빔 추세(실시간)",
+  "unit": "장소 = 1행"
+ },
+ "citydata_ppltn_x_commerce_dong": {
+  "title": "유동 대비 상가 공급",
+  "unit": "행정동 = 1행"
+ },
+ "citydata_ppltn_x_culture_daily": {
+  "title": "유동인구 × 문화행사",
+  "unit": "행정동 × 날짜"
+ },
+ "citydata_purchasing_power_daily": {
+  "title": "구매력·붐빔대비구매",
+  "unit": "장소 × 날짜"
+ },
+ "citydata_sbike_availability": {
+  "title": "따릉이 가용 현황",
+  "unit": "장소 × 대여소"
+ },
+ "commerce_address_succession": {
+  "title": "이 자리엔 다음에 뭐가?",
+  "unit": "폐업업종 × 개업업종"
+ },
+ "commerce_age_band": {
+  "title": "신상 상권 vs 노포 상권",
+  "unit": "업력밴드 × 업종 × 구"
+ },
+ "commerce_area_profile": {
+  "title": "이 업종 가게 크기",
+  "unit": "업종 × 자치구"
+ },
+ "commerce_change_activity": {
+  "title": "간판·자리 자주 바꾸는 업종",
+  "unit": "업종 = 1행"
+ },
+ "commerce_churn_yearly": {
+  "title": "상권 역동성(연도별)",
+  "unit": "연 × 업종 × 구"
+ },
+ "commerce_cohort_survival": {
+  "title": "창업 생존율 곡선",
+  "unit": "개업코호트 × 경과연차"
+ },
+ "commerce_data_quality": {
+  "title": "데이터 신뢰도 진단",
+  "unit": "데이터셋 = 1행"
+ },
+ "commerce_dong_category_matrix": {
+  "title": "우리 동네엔 뭐가 많나",
+  "unit": "행정동 × 중분류"
+ },
+ "commerce_dong_summary": {
+  "title": "우리 동네 상권 요약",
+  "unit": "행정동 = 1행"
+ },
+ "commerce_env_facility_operation": {
+  "title": "우리 구 배출시설 가동",
+  "unit": "자치구 × 연도"
+ },
+ "commerce_flow_monthly": {
+  "title": "개·폐업 흐름(월)",
+  "unit": "월 × 업종 × 지역"
+ },
+ "commerce_flow_yearly": {
+  "title": "개·폐업 흐름(연)",
+  "unit": "연 × 업종 × 지역"
+ },
+ "commerce_geo_grid_detail": {
+  "title": "상권 밀집 히트맵(상세)",
+  "unit": "500m 격자 × 업종"
+ },
+ "commerce_geo_grid_overview": {
+  "title": "상권 밀집 히트맵(개요)",
+  "unit": "500m 격자"
+ },
+ "commerce_gu_specialization": {
+  "title": "우리 구 특화 업종",
+  "unit": "자치구 × 업종"
+ },
+ "commerce_lifespan": {
+  "title": "이 업종 얼마나 버티나",
+  "unit": "업종 × 자치구"
+ },
+ "commerce_multi_site": {
+  "title": "체인·다점포 비율",
+  "unit": "업종 = 1행"
+ },
+ "commerce_phone_succession": {
+  "title": "폐업 사장님의 재도전",
+  "unit": "업종 전환 조합"
+ },
+ "commerce_seasonality": {
+  "title": "개·폐업 계절성",
+  "unit": "월 × 업종"
+ },
+ "commerce_status_duration": {
+  "title": "휴업하면 얼마나 쉬나",
+  "unit": "업종 × 상태군"
+ },
+ "commerce_status_transition": {
+  "title": "휴업 다음은 재개? 폐업?",
+  "unit": "상태전이 × 업종"
+ },
+ "commerce_uptae_rollup": {
+  "title": "업종 속 세부 업태",
+  "unit": "업태 × 업종"
+ },
+ "culture_activity_by_dong": {
+  "title": "행정동별 문화 활동",
+  "unit": "행정동 × 날짜"
+ },
+ "culture_booking_curve": {
+  "title": "공연 예매 오픈 궤적",
+  "unit": "공연 = 1행"
+ },
+ "culture_boxoffice_daily": {
+  "title": "공연 예매 박스오피스",
+  "unit": "일 × 순위"
+ },
+ "culture_calendar_density": {
+  "title": "구별 행사 캘린더 밀집도",
+  "unit": "자치구 × 날짜"
+ },
+ "culture_dine_around": {
+  "title": "행사 동네 외식 상권",
+  "unit": "행정동 = 1행"
+ },
+ "culture_event_crowd": {
+  "title": "요일·시간대 혼잡 패턴",
+  "unit": "구 × 요일 × 시간"
+ },
+ "culture_event_schedule": {
+  "title": "문화행사 일정",
+  "unit": "행사 = 1행"
+ },
+ "traffic_flow_anomaly_current": {
+  "title": "링크 속도 이상 탐지",
+  "unit": "도로링크 = 1행"
+ },
+ "traffic_flow_change_latest": {
+  "title": "직전 관측 대비 속도 변화",
+  "unit": "도로링크 = 1행"
+ },
+ "traffic_flow_congestion_hotspots_hourly": {
+  "title": "시간대 정체 핫스팟",
+  "unit": "시간 × 링크순위"
+ },
+ "traffic_flow_link_latest": {
+  "title": "링크별 최신 속도",
+  "unit": "도로링크 = 1행"
+ },
+ "traffic_flow_link_time_profile": {
+  "title": "링크 요일·시간 속도 기준선",
+  "unit": "링크 × 요일 × 시간"
+ },
+ "traffic_incident_x_weather_current_hourly": {
+  "title": "돌발 × 기상 맥락",
+  "unit": "행정동 × 시간"
+ },
+ "transit_dong_hourly": {
+  "title": "동×시간대 교통 상태판",
+  "unit": "행정동 × 시간"
+ },
+ "transit_dong_now": {
+  "title": "지금 우리 동네 교통",
+  "unit": "행정동 = 1행"
+ },
+ "transit_event_access": {
+  "title": "행사장 가는 길 안내판",
+  "unit": "행사 = 1행"
+ },
+ "transit_forecast_card": {
+  "title": "내일 이 시간 교통",
+  "unit": "지역 × 미래시각"
+ },
+ "transit_parking_full_risk": {
+  "title": "주차장 만차 리스크",
+  "unit": "주차장 = 1행"
+ },
+ "transit_parking_profile": {
+  "title": "주차장 요일×시간 점유",
+  "unit": "주차장 × 요일 × 시간"
+ },
+ "weather_place_current_outlook": {
+  "title": "지금 이 장소 예보",
+  "unit": "장소 = 1행"
+ },
+ "weather_place_forecast_change_daily": {
+  "title": "예보 수정 내역(일별)",
+  "unit": "장소 × 예보일"
+ },
+ "weather_place_precipitation_window": {
+  "title": "연속 강수 예보 구간",
+  "unit": "장소 × 구간"
+ },
+ "weather_place_risk_window": {
+  "title": "기상 주의 구간(후보)",
+  "unit": "장소 × 구간"
+ }
+}
