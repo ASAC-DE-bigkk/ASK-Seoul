@@ -38,6 +38,12 @@
                 border:1px solid var(--deck-line); border-radius:6px; padding:4px 8px; }
   .top a { font-size:12.5px; color:var(--deck-ink); text-decoration:none; }
   .top a:hover { color:#fff; text-decoration:underline; text-underline-offset:3px; }
+  /* 읽기 전용 ↔ 운영자 모드 표시 겸 토글 — 지금 무엇을 할 수 있는 상태인지가 상단에 늘 보인다 */
+  .top .mode { font:inherit; font-size:12px; font-weight:600; cursor:pointer;
+               background:rgba(255,255,255,.06); color:var(--deck-ink);
+               border:1px solid rgba(255,255,255,.14); border-radius:6px; padding:5px 11px; }
+  .top .mode:hover { color:#fff; border-color:rgba(255,255,255,.3); }
+  .top .mode.on { background:var(--ok-soft); color:var(--ok); border-color:#b7e4cb; }
 
   .wrap { max-width:1220px; margin:0 auto; padding:20px 26px 64px; }
   .banner { border-radius:8px; padding:10px 14px; font-size:12.5px; margin-bottom:16px; }
@@ -109,6 +115,20 @@
   .pill.ok { background:var(--ok-soft); color:var(--ok); }
   .pill.dim { background:var(--bg); color:var(--faint); border:1px solid var(--line); }
   .empty { padding:16px 0; font-size:12.5px; color:var(--faint); }
+  /* 키 관리 — 조치 버튼은 작고 조용하게. 파괴적인 것(폐기·삭제)만 색으로 구분한다 */
+  .kbtn { font:inherit; font-size:11px; font-weight:600; color:var(--muted); background:var(--panel);
+          border:1px solid var(--line-strong); border-radius:5px; padding:3px 8px; cursor:pointer; }
+  .kbtn:hover { border-color:var(--accent-line); color:var(--accent-deep); }
+  .kbtn.danger:hover { border-color:#f0b4ae; color:var(--red-ink); background:var(--red-soft); }
+  .kbtn.armed { background:var(--red-ink); border-color:var(--red-ink); color:#fff; }
+  .kbtn:disabled { opacity:.45; cursor:default; }
+  .kacts { display:flex; gap:5px; justify-content:flex-end; flex-wrap:wrap; }
+  .keyMsg { font-size:12px; margin-top:10px; min-height:1.2em; color:var(--muted); }
+  .keyMsg.done { color:var(--ok); } .keyMsg.err { color:var(--red-ink); }
+  .qcell { display:flex; gap:5px; align-items:center; justify-content:flex-end; }
+  .qcell input { width:64px; font:inherit; font-size:11.5px; text-align:right; padding:2px 5px;
+                 border:1px solid var(--line-strong); border-radius:5px; font-variant-numeric:tabular-nums; }
+  .qcell input:focus { border-color:var(--accent); outline:none; }
 
   /* SLO 캘린더 — 하루 = 칸 하나. 초록/노랑/빨강이 곧 "그날 파이프라인이 어땠나" */
   .cal { display:flex; gap:4px; flex-wrap:wrap; margin-top:8px; }
@@ -143,16 +163,18 @@
     <option value="14" selected>14일</option>
     <option value="30">30일</option>
   </select>
+  <button id="modeBtn" class="mode">읽기 전용 · 잠금 해제</button>
   <a href="http://localhost:8787/" target="_blank" rel="noopener">마켓플레이스 ↗</a>
 </div>
 
 <div class="wrap">
+  <!-- 막는 문이 아니라 여는 문이다 — 화면은 토큰 없이 뜨고, 여기서 푸는 건 '조치' 권한뿐이다 -->
   <div id="gate" class="gate" hidden>
-    <h2>운영자 토큰</h2>
-    <p>파이프라인 품질과 서빙 품질을 한 화면에서 봅니다. 외부 마켓플레이스와 <b>다른 배포 단위</b>입니다.</p>
+    <h2>운영자 잠금 해제</h2>
+    <p>보는 데는 토큰이 필요 없습니다. <b>키 폐기·복구·쿼터 변경·삭제</b>처럼 되돌릴 수 없는 조치만 토큰을 요구합니다.</p>
     <div class="row">
       <input type="password" id="token" placeholder="OPS_TOKEN" autocomplete="off" aria-label="운영자 토큰">
-      <button id="enter">열기</button>
+      <button id="enter">해제</button>
     </div>
     <div class="err" id="gateErr"></div>
   </div>
@@ -166,6 +188,10 @@
       <button role="tab" id="tab-serving" aria-controls="pane-serving" aria-selected="false" tabindex="-1">
         <span class="dot" id="dot-serving"></span>서빙 품질
         <span class="sub">외부 응답</span>
+      </button>
+      <button role="tab" id="tab-keys" aria-controls="pane-keys" aria-selected="false" tabindex="-1">
+        <span class="dot" id="dot-keys"></span>키 관리
+        <span class="sub">발급·쿼터·폐기</span>
       </button>
     </div>
 
@@ -220,6 +246,22 @@
       </div>
     </div>
     </section>
+
+    <section class="pane" id="pane-keys" role="tabpanel" aria-labelledby="tab-keys" tabindex="0" hidden>
+    <h2 class="sec">키 관리 <span>누가 쓰고 있나 · 발급된 키의 쿼터·상태</span></h2>
+    <div class="kpis" id="keyKpis"></div>
+    <div class="grid">
+      <div class="card wide">
+        <div class="hd">
+          <h3>발급된 키</h3>
+          <p>이메일은 서버에서 가려 보낸다 — 응답에도 원문이 없다. 조치는 전부 키 단위라 주소가 필요 없다.<br>
+             오늘 사용량은 KST 기준 · 총 호출은 최근 30일 요청 로그 기준(그 전 기록은 지워진다)</p>
+        </div>
+        <div class="bd" id="keyTable"></div>
+        <div class="keyMsg" id="keyMsg"></div>
+      </div>
+    </div>
+    </section>
   </div>
 </div>
 
@@ -246,7 +288,7 @@ const kpis = (el, items) => {
 };
 
 // ── 탭. 상태는 URL 해시에 둔다 — 새로고침·링크 공유에도 보던 자리가 유지된다.
-const PANES = ["pipeline", "serving"];
+const PANES = ["pipeline", "serving", "keys"];
 function showTab(name) {
   if (!PANES.includes(name)) name = PANES[0];
   for (const p of PANES) {
@@ -282,6 +324,8 @@ function render(d) {
            "<code>--persist-to</code> 설정을 확인하세요.</div>");
   if (d.meta.missing.includes("pipeline"))
     b.push("<div class='banner info' data-pane='pipeline'>파이프라인 테이블이 없습니다 — <code>npm run seed</code> 를 먼저 실행하세요.</div>");
+  if (!CAN_WRITE)
+    b.push("<div class='banner info' data-pane='keys'>읽기 전용입니다 — 폐기·복구·쿼터·삭제는 상단 <b>잠금 해제</b> 뒤에 할 수 있습니다.</div>");
   $("banners").innerHTML = b.join("");
 
   // ── 파이프라인
@@ -404,35 +448,165 @@ function render(d) {
   showTab(location.hash.slice(1) || PANES[0]);   // 배너 가시성도 여기서 맞춰진다
 }
 
+// ── 키 관리 ────────────────────────────────────────────────────────────────────────
+// 이 표에는 이메일이 그대로 보인다. 운영자가 "누구 키인지" 없이는 조치를 못 하기 때문인데,
+// 그래서 이 화면은 토큰 뒤에 있어야 한다(gate 참조).
+const fmtTs = (s) => (s ? s.slice(0, 16).replace("T", " ") : null);
+let KEYS = [];
+// 조치 가능 여부는 **서버가 알려준 값**을 그대로 쓴다. 화면에서 이걸 켠다고 뚫리지 않는다 —
+// 실제 차단은 POST 쪽 requireWrite 가 한다. 여기서 하는 일은 못 할 일을 버튼으로 내밀지 않는 것뿐이다.
+let CAN_WRITE = false;
+const authHeaders = () => (token() ? { authorization: "Bearer " + token() } : {});
+
+async function keyAction(hash, action, extra) {
+  const res = await fetch("/api/keys", {
+    method: "POST",
+    headers: { ...authHeaders(), "content-type": "application/json" },
+    body: JSON.stringify({ action, key_hash: hash, ...(extra || {}) }),
+  });
+  const body = await res.json().catch(() => ({}));
+  const msg = $("keyMsg");
+  if (!res.ok) { msg.className = "keyMsg err"; msg.textContent = body.detail || ("실패 (HTTP " + res.status + ")"); return; }
+  msg.className = "keyMsg done";
+  msg.textContent = ({
+    revoke: "폐기했습니다", restore: "복구했습니다",
+    quota: "쿼터를 " + nf.format(body.daily_quota) + "회로 바꿨습니다",
+    delete: "삭제했습니다 — 키·이메일·사용량이 지워졌습니다",
+  })[action] + " (" + body.key_prefix + "…)";
+  await loadKeys();
+}
+
+function renderKeys(rows) {
+  KEYS = rows || [];
+  const active = KEYS.filter((k) => k.status === "active");
+  const near = active.filter((k) => k.daily_quota > 0 && k.used_today / k.daily_quota >= 0.8);
+  kpis("keyKpis", [
+    ["발급 키", nf.format(KEYS.length), "전체"],
+    ["활성", nf.format(active.length), "폐기 " + (KEYS.length - active.length) + "개"],
+    ["오늘 호출", nf.format(KEYS.reduce((a, k) => a + (k.used_today || 0), 0)), "모든 키 합계"],
+    ["쿼터 임박", nf.format(near.length), "80% 이상 소진", near.length ? "bad" : ""],
+  ]);
+
+  $("keyTable").innerHTML = table([
+    { t: "키", name: true, get: (r) => "<code>" + esc(r.key_prefix) + "…</code>" },
+    { t: "이메일", get: (r) => esc(r.email_masked) },
+    { t: "상태", get: (r) => r.status === "active"
+        ? "<span class='pill ok'>활성</span>" : "<span class='pill bad'>폐기</span>" },
+    { t: "오늘 / 쿼터", r: true, get: (r) => {
+        const ratio = r.daily_quota > 0 ? r.used_today / r.daily_quota : 0;
+        const cls = ratio >= 1 ? "bad" : ratio >= 0.8 ? "warn" : "dim";
+        const used = "<span class='pill " + cls + "'>" + nf.format(r.used_today) + "</span>";
+        // 읽기 전용일 때 입력칸을 남겨두면 "고칠 수 있다"고 읽힌다 — 숫자만 보여준다
+        return "<div class='qcell'>" + used + (CAN_WRITE
+          ? "<input type='number' min='0' value='" + r.daily_quota + "' data-q='" + r.key_hash + "' aria-label='일일 쿼터'>" +
+            "<button class='kbtn' data-act='quota' data-h='" + r.key_hash + "'>저장</button>"
+          : "<span>/ " + nf.format(r.daily_quota) + "</span>") + "</div>"; } },
+    { t: "총 호출", r: true, get: (r) => nf.format(r.calls_logged) },
+    { t: "최근 호출", r: true, get: (r) => fmtTs(r.last_call) },
+    { t: "발급", r: true, get: (r) => fmtTs(r.created_at) },
+    { t: "", r: true, get: (r) => CAN_WRITE
+        ? "<div class='kacts'>" + (r.status === "active"
+            ? "<button class='kbtn danger' data-act='revoke' data-h='" + r.key_hash + "'>폐기</button>"
+            : "<button class='kbtn' data-act='restore' data-h='" + r.key_hash + "'>복구</button>") +
+          "<button class='kbtn danger' data-act='delete' data-h='" + r.key_hash + "'>삭제</button></div>"
+        : "" },
+  ], KEYS, "발급된 키가 없습니다 — 마켓플레이스에서 키를 발급하면 여기에 나타납니다");
+
+  $("dot-keys").className = "dot " + (KEYS.length ? (near.length ? "bad" : "ok") : "");
+}
+
+// 파괴적 조치는 한 번 더 묻는다 — 버튼이 '정말 폐기/삭제'로 바뀐 뒤 두 번째 클릭에만 실행된다
+$("keyTable").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const act = b.dataset.act, hash = b.dataset.h;
+  if (act === "quota") {
+    const input = $("keyTable").querySelector("input[data-q='" + hash + "']");
+    return keyAction(hash, "quota", { daily_quota: parseInt(input.value, 10) });
+  }
+  if (act === "restore") return keyAction(hash, "restore");
+  if (b.dataset.armed !== "1") {
+    for (const other of $("keyTable").querySelectorAll("button[data-armed='1']")) {
+      other.dataset.armed = ""; other.classList.remove("armed");
+      other.textContent = other.dataset.act === "revoke" ? "폐기" : "삭제";
+    }
+    b.dataset.armed = "1"; b.classList.add("armed");
+    b.textContent = act === "revoke" ? "정말 폐기" : "정말 삭제";
+    const msg = $("keyMsg");
+    msg.className = "keyMsg";
+    msg.textContent = act === "revoke"
+      ? "폐기하면 그 키의 호출이 즉시 403이 됩니다 (복구 가능)."
+      : "삭제하면 키·이메일·사용량이 지워집니다 — 되돌릴 수 없습니다.";
+    return;
+  }
+  keyAction(hash, act);
+});
+
+async function loadKeys() {
+  const res = await fetch("/api/keys", { headers: authHeaders() });
+  if (!res.ok) { renderKeys([]); return; }
+  const body = await res.json();
+  CAN_WRITE = Boolean(body.can_write);
+  renderKeys(body.keys);
+  if (!CAN_WRITE) { $("keyMsg").className = "keyMsg"; $("keyMsg").textContent = ""; }
+}
+
+// 상단 배지 = 지금 무엇을 할 수 있는 상태인가. 조치 권한이 화면 어딘가에 숨어 있으면
+// "왜 버튼이 없지?"로 헤매게 된다.
+function syncMode() {
+  const b = $("modeBtn");
+  b.textContent = CAN_WRITE ? "운영자 모드 · 잠그기" : "읽기 전용 · 잠금 해제";
+  b.classList.toggle("on", CAN_WRITE);
+}
+
 async function load() {
   let res;
   try {
-    res = await fetch("/api/summary?days=" + $("days").value,
-                      { headers: { authorization: "Bearer " + token() } });
-  } catch { return showGate("서버에 닿지 못했습니다"); }
-  if (res.status === 401) { sessionStorage.removeItem(TK); return showGate("토큰이 맞지 않습니다"); }
+    res = await fetch("/api/summary?days=" + $("days").value, { headers: authHeaders() });
+  } catch { return fail("서버에 닿지 못했습니다"); }
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
-    return showGate(b.detail || ("불러오지 못했습니다 (HTTP " + res.status + ")"));
+    return fail(b.detail || ("불러오지 못했습니다 (HTTP " + res.status + ")"));
   }
-  $("gate").hidden = true; $("app").hidden = false;
-  render(await res.json());
+  const data = await res.json();
+  CAN_WRITE = Boolean(data.meta && data.meta.can_write);   // 배너·버튼보다 먼저 확정한다
+  // 저장해 둔 토큰이 더는 맞지 않는다 — 읽기는 그대로 되니 화면을 막지 않고 알리기만 한다
+  if (token() && !CAN_WRITE) {
+    sessionStorage.removeItem(TK);
+    $("gateErr").textContent = "토큰이 맞지 않습니다";
+    $("gate").hidden = false;
+  }
+  $("app").hidden = false;
+  render(data);
+  syncMode();
+  await loadKeys();   // render() 가 showTab 으로 끝나므로 그 뒤에 채운다
 }
-function showGate(msg) {
+// 데이터를 못 받은 상태 — 그릴 것이 없으니 화면을 접고 사유만 보여준다
+function fail(msg) {
   $("app").hidden = true; $("gate").hidden = false;
   $("gateErr").textContent = msg || "";
-  $("token").focus();
 }
+$("modeBtn").addEventListener("click", () => {
+  if (CAN_WRITE) {                       // 잠그기 — 토큰을 지우고 읽기 전용으로 되돌린다
+    sessionStorage.removeItem(TK);
+    $("gate").hidden = true; $("gateErr").textContent = "";
+    return load();
+  }
+  $("gate").hidden = !$("gate").hidden;
+  if (!$("gate").hidden) $("token").focus();
+});
 $("enter").addEventListener("click", () => {
   const t = $("token").value.trim();
-  if (!t) return showGate("토큰을 입력해주세요");
+  if (!t) { $("gateErr").textContent = "토큰을 입력해주세요"; return; }
   sessionStorage.setItem(TK, t);
   $("token").value = "";
+  $("gateErr").textContent = "";
+  $("gate").hidden = true;
   load();
 });
 $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") $("enter").click(); });
-$("days").addEventListener("change", () => { if (token()) load(); });
-if (token()) load(); else showGate("");
+$("days").addEventListener("change", load);
+load();   // 토큰 없이도 뜬다 — 막는 문이 아니라 여는 문이다
 </script>
 </body>
 </html>
