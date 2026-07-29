@@ -268,6 +268,8 @@
   .foot-in b { color:var(--muted); font-weight:600; }
   .foot-in code { font-family:var(--mono); font-size:10.5px; }
   .foot-in .r { margin-left:auto; }
+  .foot-in a { color:var(--muted); }
+  .foot-in a:hover { color:var(--accent-deep); }
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior:auto; }
@@ -282,14 +284,16 @@
 <nav class="nav">
   <div class="wrap nav-in">
     <a class="brand" href="/" aria-label="ASK SEOUL 홈"><span class="logo" aria-hidden="true">AS</span><span class="nm">ASK SEOUL<span class="sub">Data API Hub</span></span></a>
+    <!-- 목적지는 /catalog 한 곳뿐이다 — 플레이그라운드·API 키는 그 페이지 안의 섹션이라
+         헤더에 따로 걸면 같은 문서로 가는 링크가 셋이 된다. 섹션 이동은 카탈로그 사이드바 몫. -->
     <div class="nav-links">
       <a class="active" href="/">홈</a>
       <a class="keep" href="/catalog">카탈로그</a>
-      <a href="/catalog#playground">플레이그라운드</a>
-      <a href="/catalog#auth">API 키</a>
     </div>
     <span class="spacer"></span>
-    <span class="env-pill"><i aria-hidden="true"></i>LOCAL · 프로토타입</span>
+    <!-- 'LOCAL' 은 우리 배포 환경이지 이용자가 알 일이 아니다. 남길 가치가 있는 건
+         "완성된 상용 서비스가 아니다"라는 사실뿐이라 그것만 남긴다. -->
+    <span class="env-pill"><i aria-hidden="true"></i>프로토타입</span>
     <a class="nav-cta" href="/catalog#auth">무료로 시작</a>
   </div>
 </nav>
@@ -352,7 +356,7 @@
   </section>
 
   <section>
-    <div class="sec-head"><h2>시작하기</h2><span class="hint">가입 없음 · 이메일만 · 아래 데모는 현재 서빙 중인 문화 도메인</span></div>
+    <div class="sec-head"><h2>시작하기</h2><span class="hint">가입 없음 · 이메일만 · 아래 데모는 문화·행사 데이터입니다</span></div>
     <div class="how">
       <div>
         <div class="hstep"><div class="num2">1</div><div>
@@ -400,10 +404,12 @@
 
 <footer>
   <div class="wrap foot-in">
-    <span><b>Serving Contract v1.1</b></span>
-    <span>갱신 일 1회 · 새벽 배치 후 발행</span>
-    <span>오류 규약 <code>problem+json</code></span>
-    <span class="r">ASK-Seoul#58 프로토타입 · LOCAL</span>
+    <!-- 계약 버전·배치 시각·내부 이슈 번호는 우리 사정이다. 이용자에게 남는 정보만 둔다. -->
+    <span>매일 1회 갱신</span>
+    <span><a href="/legal#attribution">데이터 출처</a></span>
+    <span><a href="/legal#terms">이용약관</a></span>
+    <span><a href="/legal#privacy">개인정보 처리방침</a></span>
+    <span class="r">프로토타입 · 가용성을 보장하지 않습니다</span>
   </div>
 </footer>
 
@@ -412,33 +418,30 @@ const $ = (id) => document.getElementById(id);
 const nf = new Intl.NumberFormat("ko-KR");
 const HOME_CARDS = 6;  // 홈은 큐레이션 — 나머지는 카탈로그에서
 
-// catalog.html 과 동일한 표시명 사전 — _catalog 에 표시명 컬럼이 없어 클라이언트 보유.
-// 제품이 늘면 양쪽 갱신 필요 (계약에 display 필드가 생기면 서버 응답으로 일원화)
-const DISPLAY = {
-  culture_activity_by_dong: { title:"행정동별 문화 활동", unit:"행정동 × 날짜" },
-  culture_calendar_density: { title:"구별 행사 캘린더 밀집도", unit:"자치구 × 날짜" },
-  culture_event_schedule:   { title:"문화행사 일정", unit:"행사 = 1행" },
-  culture_event_crowd:      { title:"요일·시간대 혼잡 패턴", unit:"구 × 요일 × 시간" },
-  culture_boxoffice_daily:  { title:"공연 예매 박스오피스", unit:"일 × 순위" },
-  culture_dine_around:      { title:"행사 동네 외식 상권", unit:"행정동 = 1행" },
-  culture_booking_curve:    { title:"공연 예매 오픈 궤적", unit:"공연 = 1행" },
-};
+// 표시명 사전 — _catalog 에 표시명 컬럼이 없어 클라이언트가 갖는다.
+// catalog.html 과 같은 생성물(fixtures/build_fixtures.py)을 읽으므로 양쪽을 따로 고칠 일이 없다.
+// 계약에 display 필드가 생기면 서버 응답으로 일원화하고 이 파일은 지운다.
+let DISPLAY = {};
 // 공간 단위는 도메인마다 다르다 — 여기에 실측값을 적어 "426동 전역"이 플랫폼 전체인 것처럼
 // 읽히지 않게 한다. 근거: culture=dim_admin_dong 426 scaffold · citydata=통합 API 121장소
 // (citydata_bronze.py) · weather=config/seoul_kma_grids.csv 80칸 · transit/commerce=gold 그레인이
-// 행정동. traffic 은 단위를 확인하지 못해 비워 둔다(모르는 것을 적지 않는다).
+// 행정동 · traffic=6종 중 5종이 도로 링크 그레인(나머지 1종 돌발×기상만 행정동).
+// id 는 domainOf() 가 product_id 앞머리에서 뽑는 값과 같아야 한다 — 다르면 그 도메인 제품이
+// 집계에 안 붙고 'SOON' 으로 뜬다(citydata 를 population 으로 적었던 게 그 경우였다)
+// 이름은 서로 헷갈리지 않아야 한다 — 'traffic=교통'은 '대중교통'의 부분 문자열이라 나란히
+// 놓이면 상위 범주처럼 읽혔다. 담고 있는 것(도로 속도·정체 5종)으로 부른다.
 const DOMAINS = [
   { id:"culture",    name:"문화·행사", desc:"공연·전시·축제·예매",     unit:"행정동 426 전역" },
-  { id:"population", name:"인구·도시", desc:"실시간 인구·도시데이터",   unit:"관측 121곳" },
+  { id:"citydata",   name:"인구·도시", desc:"실시간 인구·도시데이터",   unit:"관측 121곳" },
   { id:"transit",    name:"대중교통",  desc:"버스·지하철 접근성",       unit:"행정동" },
   { id:"commerce",   name:"상권",      desc:"업종·매출 분석",           unit:"행정동" },
   { id:"weather",    name:"날씨",      desc:"기상 관측·예보",           unit:"기상 격자 80" },
-  { id:"traffic",    name:"교통",      desc:"도로 소통·사고",           unit:"" },
+  { id:"traffic",    name:"도로 소통",  desc:"속도·정체·돌발",           unit:"도로 링크" },
 ];
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const domainOf = (p) => (p.product_id || p.name || "").replace(/^gold_/, "").split("_")[0];
-const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
+const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id || p.name;
 
 // 신선도는 카탈로그가 내려주는 exported_at 실측 — 고정 문구 금지(파이프라인 시각과 어긋난다)
 function relTime(iso) {
@@ -666,6 +669,8 @@ function failState(id, msg) {
 // ── 카탈로그: 통계 · 제품 카드 · 도메인
 async function bootCatalog() {
   let products;
+  // 표시명은 부가 정보다 — 못 읽어도 카탈로그는 그대로 뜬다(제목이 product_id 로 내려앉을 뿐)
+  try { DISPLAY = await (await fetch("/product-display.json")).json(); } catch { DISPLAY = {}; }
   try {
     const res = await fetch("/api/catalog");
     if (!res.ok) throw new Error("HTTP " + res.status);

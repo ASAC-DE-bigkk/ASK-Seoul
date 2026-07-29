@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>출처 · 약관 · 개인정보 — ASK: SEOUL 데이터 플랫폼</title>
+<style>
+  /* 팔레트·서체는 index.html·catalog.html 과 동일 — 세 페이지가 어긋나면 다른 서비스로 보인다 */
+  :root {
+    --bg:#f6f7f6; --panel:#ffffff; --deck:#0e1a18; --deck-line:#1f302d; --deck-ink:#c2d6d1;
+    --ink:#12211f; --muted:#48605c; --faint:#8fa3a0; --line:#e6eae8; --line-strong:#ccd5d2;
+    --accent:#b8492a; --accent-deep:#8f3620; --accent-soft:#fdf1ec; --accent-line:#f0c3b2;
+    --amber-soft:#fffaeb; --amber-ink:#b54708;
+    --mono:ui-monospace,'Cascadia Code',Consolas,monospace;
+  }
+  * { box-sizing:border-box; margin:0; }
+  html { scroll-behavior:smooth; }
+  body { font-family:Pretendard,'Pretendard Variable','Apple SD Gothic Neo','Malgun Gothic',
+                     system-ui,-apple-system,'Noto Sans KR',sans-serif;
+         background:var(--bg); color:var(--ink); font-size:14px; line-height:1.7;
+         -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent-deep); text-decoration:none; }
+  a:hover { text-decoration:underline; text-underline-offset:3px; }
+  code { font-family:var(--mono); font-size:.9em; background:#eef2f0; padding:1px 5px; border-radius:4px; }
+  .wrap { max-width:820px; margin:0 auto; padding:0 24px; }
+
+  /* nav — index.html 과 같은 구조 */
+  .nav { background:var(--deck); border-bottom:1px solid var(--deck-line); position:sticky; top:0; z-index:20; }
+  .nav-in { display:flex; align-items:center; gap:20px; height:56px; }
+  .brand { display:flex; align-items:center; gap:10px; color:#fff; }
+  .brand .logo { width:26px; height:26px; border-radius:6px; background:var(--accent);
+                 display:grid; place-items:center; font-size:11px; font-weight:700; letter-spacing:.02em; }
+  .brand .nm { font-size:14px; font-weight:600; line-height:1.15; }
+  .brand .sub { display:block; font-size:10px; font-weight:500; color:var(--deck-ink); letter-spacing:.04em; }
+  .nav-links { display:flex; gap:2px; margin-left:6px; }
+  .nav-links a { font-size:13px; font-weight:500; color:var(--deck-ink); padding:6px 12px; border-radius:6px; }
+  .nav-links a:hover { background:rgba(255,255,255,.06); color:#fff; text-decoration:none; }
+  .nav .spacer { flex:1; }
+  .env-pill { font-size:11px; color:var(--deck-ink); border:1px solid var(--deck-line);
+              padding:4px 9px; border-radius:99px; }
+  @media (max-width:640px){ .env-pill { display:none; } .nav-in { gap:12px; } }
+
+  header.page { padding:38px 0 22px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header.page h1 { font-size:26px; font-weight:700; letter-spacing:-.01em; }
+  header.page .lede { margin-top:8px; color:var(--muted); font-size:13.5px; }
+
+  .draft { margin:20px 0 0; background:var(--amber-soft); border:1px solid #fde3ae;
+           border-radius:8px; padding:12px 14px; font-size:12.5px; color:var(--amber-ink); }
+
+  nav.toc { display:flex; flex-wrap:wrap; gap:6px; margin:22px 0 0; }
+  nav.toc a { font-size:12.5px; padding:5px 11px; border:1px solid var(--line-strong);
+              border-radius:99px; background:var(--panel); color:var(--muted); }
+  nav.toc a:hover { border-color:var(--accent-line); color:var(--accent-deep); text-decoration:none; }
+
+  main { padding:8px 0 60px; }
+  section { margin-top:38px; scroll-margin-top:72px; }
+  section > h2 { font-size:18px; font-weight:700; padding-bottom:9px; border-bottom:1px solid var(--line); }
+  section > h2 .en { font-size:11px; font-weight:500; color:var(--faint); margin-left:8px;
+                     letter-spacing:.04em; text-transform:uppercase; }
+  h3 { font-size:14px; font-weight:650; margin:22px 0 6px; }
+  p { margin:9px 0; color:var(--muted); }
+  p.lead { color:var(--ink); }
+  ul { margin:9px 0; padding-left:19px; color:var(--muted); }
+  li { margin:4px 0; }
+  li b, p b { color:var(--ink); font-weight:650; }
+
+  .table-scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px;
+                  background:var(--panel); margin:14px 0; }
+  table { border-collapse:collapse; width:100%; font-size:12.5px; }
+  th { background:#f2f6f4; text-align:left; font-weight:600; color:var(--muted);
+       padding:9px 13px; white-space:nowrap; border-bottom:1px solid var(--line); }
+  td { padding:9px 13px; border-bottom:1px solid var(--line); vertical-align:top; color:var(--muted); }
+  tr:last-child td { border-bottom:0; }
+  td.dom { color:var(--ink); font-weight:600; white-space:nowrap; }
+
+  .note { background:var(--accent-soft); border:1px solid var(--accent-line); border-radius:8px;
+          padding:12px 14px; margin:14px 0; font-size:12.5px; color:var(--accent-deep); }
+  .updated { margin-top:44px; padding-top:16px; border-top:1px solid var(--line);
+             font-size:12px; color:var(--faint); }
+  footer { margin-top:0; border-top:1px solid var(--line); background:var(--panel); }
+  .foot-in { display:flex; flex-wrap:wrap; gap:16px; padding:18px 0; font-size:12px; color:var(--faint); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="/" aria-label="ASK SEOUL 홈"><span class="logo" aria-hidden="true">AS</span><span class="nm">ASK SEOUL<span class="sub">Data API Hub</span></span></a>
+    <div class="nav-links">
+      <a href="/">홈</a>
+      <a href="/catalog">카탈로그</a>
+    </div>
+    <span class="spacer"></span>
+    <span class="env-pill">프로토타입</span>
+  </div>
+</nav>
+
+<header class="page">
+  <div class="wrap">
+    <h1>출처 · 이용약관 · 개인정보</h1>
+    <p class="lede">이 서비스가 어떤 데이터를 어디서 가져오는지, 무엇을 보장하지 않는지, 이용자에게서 무엇을 받아 어떻게 다루는지 적어 둡니다.</p>
+    <div class="draft">
+      <b>초안입니다.</b> 학습·연구 목적으로 만든 프로토타입 단계의 문서이며, 법률 검토를 거치지 않았습니다.
+      지금 이 문서는 <b>운영 사실을 있는 그대로 적어 둔 것</b>이지 법적 약정이 아닙니다.
+    </div>
+    <nav class="toc">
+      <a href="#attribution">1. 데이터 출처와 이용조건</a>
+      <a href="#terms">2. 이용약관</a>
+      <a href="#privacy">3. 개인정보 처리방침</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section id="attribution">
+    <h2>1. 데이터 출처와 이용조건 <span class="en">Attribution</span></h2>
+    <p class="lead">이 API가 제공하는 모든 데이터는 <b>공공 원천을 수집·가공한 2차 산출물</b>입니다. 원천 데이터를 그대로 중계하지 않으며, 집계·조인·파생 지표 계산을 거칩니다. 따라서 <b>수치가 원천 제공기관의 공식 발표와 다를 수 있고, 그 차이의 책임은 저희에게 있습니다.</b></p>
+
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>도메인</th><th>원천</th><th>제공기관</th></tr></thead>
+        <tbody>
+          <tr><td class="dom">문화·행사</td><td>문화행사 정보 · 공연예술통합전산망(KOPIS) · 영화관입장권통합전산망(KOBIS) · 문화공공데이터 · 세종문화회관 공연정보</td><td>서울특별시 · 예술경영지원센터 · 영화진흥위원회 · 한국문화정보원 · 세종문화회관</td></tr>
+          <tr><td class="dom">인구·도시</td><td>서울시 실시간 도시데이터(인구·상권·대기질·따릉이·충전소)</td><td>서울특별시 (상권 결제 지표는 신한카드 제공분 포함)</td></tr>
+          <tr><td class="dom">상권</td><td>지방행정인허가데이터개방(LOCALDATA) · 서울시 인허가 정보</td><td>행정안전부 · 서울특별시</td></tr>
+          <tr><td class="dom">대중교통</td><td>버스·주차장 정보 · 지하철 실시간 도착정보</td><td>서울특별시</td></tr>
+          <tr><td class="dom">교통</td><td>서울시 교통정보시스템(TOPIS) 도로 소통정보</td><td>서울특별시</td></tr>
+          <tr><td class="dom">날씨</td><td>기상청 단기예보 조회서비스</td><td>기상청 (공공데이터포털)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>원천의 이용조건이 우선합니다</h3>
+    <p>각 원천 데이터의 이용허락 범위(공공누리 유형, 상업적 이용 가능 여부, 출처 표시 의무 등)는 <b>제공기관의 고지를 따릅니다.</b> 저희는 그 조건을 대신 부여하거나 완화할 수 없습니다. 이 API의 결과를 재배포·상업적으로 이용하시려면 위 표의 원천별 조건을 직접 확인하시기 바랍니다.</p>
+    <p>이 API의 결과를 인용하실 때는 <b>원천 제공기관과 이 서비스를 함께 표시</b>해 주세요. 가공 과정이 있으므로 원천만 표시하면 원천의 공식 수치로 오인될 수 있습니다.</p>
+
+    <h3>특히 주의할 제품</h3>
+    <ul>
+      <li><b>기상 주의 구간</b>(<code>gold_weather_place_risk_window</code>) — 설명 가능한 임계값으로 선별한 <b>후보</b>이며, <b>기상청 공식 특보가 아닙니다.</b> 강수 예보 구간 역시 예보이지 실제 강수 관측이나 발생 보장이 아닙니다.</li>
+      <li><b>교통·대중교통 실시간 제품</b> — 원천 관측 주기와 수집 배치의 시차가 있어, 응답 시점의 현장 상태와 다를 수 있습니다. 각 제품의 <code>exported_at</code>·시간축 값으로 시점을 확인하세요.</li>
+      <li><b>상권 파생 지표</b>(체인 비율·전화 승계 등) — 원천의 전화·좌표 결측이 커 근사치입니다. 각 제품 설명에 근사의 근거와 한계를 적어 두었습니다.</li>
+    </ul>
+  </section>
+
+  <section id="terms">
+    <h2>2. 이용약관 <span class="en">Terms of Use</span></h2>
+
+    <h3>서비스의 성격</h3>
+    <p class="lead">이 서비스는 <b>학습 프로젝트의 프로토타입</b>입니다. 가용성 목표(SLA)가 없고, <b>예고 없이 중단·변경·초기화될 수 있습니다.</b> 업무 연속성이 필요한 용도에 의존하지 마세요.</p>
+
+    <h3>보증하지 않는 것</h3>
+    <p>데이터의 정확성·완전성·적시성을 보증하지 않으며, 제공된 데이터를 근거로 한 판단과 그 결과에 대해 책임지지 않습니다. 특히 <b>안전·의료·법률·재산에 관한 의사결정의 단독 근거로 사용하지 마세요.</b> 위 1절의 '특히 주의할 제품'을 함께 읽어 주시기 바랍니다.</p>
+
+    <h3>이용 규칙</h3>
+    <ul>
+      <li><b>키는 발급받은 본인만</b> 사용합니다. 공유·재배포하지 마세요.</li>
+      <li><b>쿼터 우회를 목적으로 여러 키를 발급받지 마세요.</b> 이메일당 1키이며, 발급은 IP당 시간당 5회로 제한됩니다.</li>
+      <li>서비스의 정상 운영을 방해하는 행위(과도한 동시 요청, 취약점 탐색 등)를 하지 마세요.</li>
+      <li>원천 데이터의 이용조건을 위반하는 방식으로 재배포하지 마세요 (1절 참조).</li>
+    </ul>
+
+    <h3>호출 한도</h3>
+    <p>두 층으로 걸려 있습니다. <b>일일 쿼터</b>는 한 사람이 하루에 얼마나 쓰는지를, <b>분당 한도</b>는 지금 이 순간 서비스를 얼마나 밀어붙이는지를 제한합니다.</p>
+    <ul>
+      <li><b>분당 60건</b> — 초과 시 <code>429</code>와 함께 <code>Retry-After</code> 헤더로 몇 초 뒤에 다시 오면 되는지 알려드립니다. 인증 요청은 키 단위로, 인증 없는 미리보기는 IP 단위로 셉니다.</li>
+      <li>분당 한도로 막힌 요청은 <b>일일 쿼터를 소모하지 않습니다.</b></li>
+    </ul>
+
+    <h3>쿼터</h3>
+    <p>키당 <b>1일 1,000회</b>이며 <b>KST 자정</b>에 리셋됩니다. 초과 시 <code>429</code>를 반환합니다. 유효하지 않은 요청(<code>400</code>·<code>404</code>·<code>409</code>)은 쿼터를 소모하지 않습니다. 인증 없는 미리보기(<code>/api/preview</code>)는 쿼터에 계상되지 않습니다.</p>
+    <p><b>페이지도 한 건씩 계상됩니다.</b> 큰 제품을 <code>cursor</code>로 나눠 받으면 페이지 수만큼 쿼터를 씁니다 — 한 번에 받는 행(<code>limit</code>, 최대 5,000)을 키우면 호출 수를 줄일 수 있습니다.</p>
+
+    <h3>이용 제한</h3>
+    <p>위 규칙을 위반하거나 서비스 운영에 지장을 주는 경우 <b>사전 통지 없이 키를 폐기할 수 있습니다.</b> 폐기된 키는 <code>403</code>을 반환합니다.</p>
+
+    <h3>문의</h3>
+    <p>키 폐기와 정보 삭제는 아래 3절의 방법으로 <b>직접 처리하실 수 있습니다.</b> 그 밖의 문의·오류 신고 창구는 정식 공개 시 안내합니다 — 프로토타입 단계라 상시 창구를 운영하지 않습니다.</p>
+  </section>
+
+  <section id="privacy">
+    <h2>3. 개인정보 처리방침 <span class="en">Privacy</span></h2>
+    <p class="lead">받는 것을 최소로 두고, 받은 것은 어디에 왜 쓰는지 아래에 전부 적었습니다.</p>
+
+    <h3>수집하는 항목</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>항목</th><th>수집 시점</th><th>이용 목적</th><th>보관 기간</th></tr></thead>
+        <tbody>
+          <tr><td class="dom">이메일</td><td>API 키 발급</td><td>이메일당 1키 식별, 재발급(rotate) 처리</td><td>키 삭제 요청 시까지</td></tr>
+          <tr><td class="dom">발급 요청 IP</td><td>API 키 발급</td><td>발급 남용 방지(IP당 시간당 5회 제한)</td><td>현재 자동 삭제 없음 — 아래 '알려진 한계' 참조</td></tr>
+          <tr><td class="dom">API 요청 기록</td><td>API 호출</td><td>어떤 데이터가 실제로 쓰이는지 측정, 장애·남용 대응</td><td>30일 후 자동 삭제</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>API 요청 기록에 남는 것은 <b>호출 경로·제품(테이블)명·응답 상태·응답 행수·소요 시간·키 해시</b>, 그리고 필터로 사용한 <b>컬럼의 이름</b>입니다.</p>
+
+    <h3>저장하지 않는 것</h3>
+    <ul>
+      <li><b>API 키 원문</b> — SHA-256 해시와 표시용 접두 8자만 저장합니다. 발급 응답이 원문의 유일한 노출 지점이며, 저희도 복원할 수 없습니다.</li>
+      <li><b>필터에 넣은 값</b> — 컬럼 이름만 남기고 값은 버립니다. 알고 싶은 것은 "어떤 축으로 자르는가"이지 "누가 무엇을 찾았는가"가 아닙니다.</li>
+      <li><b>미리보기 요청의 식별자</b> — 인증 없는 요청은 키 해시가 비어 있어 사람 단위로 묶을 수 없습니다. 그게 의도입니다.</li>
+    </ul>
+
+    <h3>처리 위탁과 보관 위치</h3>
+    <p>서비스는 <b>Cloudflare</b> 인프라 위에서 동작하며, 위 데이터도 그곳에 저장됩니다. 그 외 <b>제3자에게 제공하거나 판매하지 않습니다.</b> 광고·트래킹 스크립트를 넣지 않았고, 쿠키를 사용하지 않습니다.</p>
+
+    <h3>이용자의 권리</h3>
+    <p><b>직접 지우실 수 있습니다.</b> 카탈로그 화면의 '내 사용량' 아래 <b>키 폐기</b> 버튼을 쓰거나, API 로 직접 호출하셔도 됩니다. 별도 승인 절차 없이 즉시 반영됩니다.</p>
+    <ul>
+      <li><b>폐기</b> — <code>DELETE /api/keys</code>. 키가 즉시 무효가 됩니다. 이메일은 남아 있어 같은 주소로 새 키를 받으실 수 있습니다.</li>
+      <li><b>완전 삭제</b> — <code>DELETE /api/keys?purge=true</code>. 키와 <b>이메일·사용량 기록까지</b> 지웁니다. 이미 폐기한 키로도 호출할 수 있습니다.</li>
+    </ul>
+    <p>삭제 후에도 <b>요청 기록(30일 보존)은 남습니다.</b> 다만 그 기록에는 키 해시만 있고, 삭제로 해시와 이메일의 대응이 사라지므로 <b>더는 특정인과 연결되지 않습니다.</b> 30일이 지나면 자동 삭제됩니다.</p>
+
+    <div class="note">
+      <b>알려진 한계 (프로토타입)</b><br>
+      ① 발급 요청 IP 기록에 자동 만료가 걸려 있지 않습니다. ② 이메일은 암호화 없이 저장됩니다.
+      ③ 이메일 소유 확인(인증 메일) 절차가 없어, 타인의 주소로도 발급이 가능합니다.
+      ④ 상시 문의 창구가 없습니다 — 삭제는 직접 하실 수 있지만, 그 밖의 요청을 받을 곳이 아직 없습니다.
+      정식 공개 전에 해소해야 할 항목으로 두고 있으며, 그때까지 <b>민감한 주소 대신 임시 주소</b>를 쓰셔도 무방합니다.
+    </div>
+  </section>
+
+  <p class="updated">최종 갱신 2026-07-29</p>
+</main>
+
+<footer>
+  <div class="wrap foot-in">
+    <span><a href="/">홈</a></span>
+    <span><a href="/catalog">카탈로그</a></span>
+    <span class="spacer"></span>
+    <span>프로토타입 · 가용성을 보장하지 않습니다</span>
+  </div>
+</footer>
+
+</body>
+</html>

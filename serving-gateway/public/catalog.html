@@ -60,6 +60,8 @@
                 line-height:1.9; border-top:1px solid rgba(255,255,255,.07); }
   .side .foot b { color:var(--sidebar-ink); font-weight:600; }
   .side .foot code { font-family:var(--mono); font-size:10px; }
+  .side .foot a { color:var(--sidebar-ink); text-decoration:none; }
+  .side .foot a:hover { color:#fff; text-decoration:underline; text-underline-offset:2px; }
 
   .main { min-width:0; }
   .topbar { background:var(--panel); border-bottom:1px solid var(--line); padding:0 28px; height:52px;
@@ -128,6 +130,14 @@
                  color:var(--accent-deep); }
   .reveal .warn { font-size:11.5px; color:var(--red-ink); margin-top:6px; }
   .ferr { font-size:12.5px; color:var(--red-ink); margin-top:8px; line-height:1.5; }
+  .revoke { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:12px;
+            padding-top:10px; border-top:1px solid var(--line); }
+  .revoke span { font-size:11.5px; color:var(--faint); line-height:1.5; }
+  .revoke span.done { color:var(--green-ink); }
+  .pager { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  .pager span { font-size:11.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
+  .consent { font-size:11.5px; color:var(--faint); margin-top:10px; line-height:1.6; }
+  .consent b { color:var(--muted); font-weight:600; }
   .usage .bar { height:6px; background:var(--bg); border:1px solid var(--line); border-radius:999px;
                 overflow:hidden; margin-top:10px; }
   .usage .fill { height:100%; width:0%; background:var(--accent); transition:width .3s; }
@@ -229,7 +239,10 @@
       <li data-hash="#playground" onclick="goHash('#playground')"><span class="dot" style="background:#3a5450"></span>플레이그라운드</li>
       <li data-hash="#auth" onclick="goHash('#auth')"><span class="dot" style="background:#3a5450"></span>인증 · API 키</li>
     </ul>
-    <div class="foot"><b>Serving Contract v1.1</b><br>갱신 일 1회 · 새벽 배치 후 발행<br>오류 규약 <code>problem+json</code><br>ASK-Seoul#58 프로토타입</div>
+    <!-- 개발자용 페이지라 오류 형식(RFC 7807)은 남긴다 — 그건 붙일 때 실제로 필요한 정보다.
+         반면 내부 계약 버전·배치 시각·이슈 번호는 이용자가 알 일이 아니라 뺐다. -->
+    <div class="foot">매일 1회 갱신<br>오류 응답 <code>RFC 7807</code><br>프로토타입 · 가용성 무보장
+      <br><a href="/legal#attribution">데이터 출처</a> · <a href="/legal#terms">이용약관</a> · <a href="/legal#privacy">개인정보</a></div>
   </aside>
 
   <div class="main">
@@ -237,7 +250,7 @@
       <h1 id="pageTitle">데이터 카탈로그</h1>
       <div class="search"><span class="ico"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg></span><input type="search" id="q" placeholder="제품·질문·테이블명 검색"></div>
       <span class="spacer"></span>
-      <span class="env-pill"><i></i>LOCAL · 프로토타입</span>
+      <span class="env-pill"><i></i>프로토타입</span>
       <span class="keychip" id="keychip" onclick="goHash('#auth')">키 미연결</span>
     </div>
 
@@ -257,12 +270,21 @@
             <div class="warn" id="keyNote">이 키는 지금 한 번만 표시됩니다 — 서버에는 해시만 저장됩니다.</div>
           </div>
           <div class="ferr" id="issueErr"></div>
+          <!-- 고지는 수집 지점에 있어야 의미가 있다 — 이메일을 실제로 받는 곳이 여기다 -->
+          <div class="consent">발급하면 <a href="/legal#terms">이용약관</a>과 <a href="/legal#privacy">개인정보 처리방침</a>에 동의하는 것으로 봅니다.
+            이메일은 <b>이메일당 1키 식별</b>에만 쓰고, 키 원문은 저장하지 않습니다.</div>
         </div>
         <div class="usage">
           <h3>내 사용량</h3>
           <div class="row"><input type="password" id="pKey" placeholder="ask_… (발급 시 자동 입력)" autocomplete="off"><button class="btn-g" id="keyEye" title="키 보기/가리기" aria-label="키 보기/가리기">보기</button><button class="btn-g" id="meBtn">조회</button></div>
           <div class="bar"><div class="fill" id="quotaFill"></div></div>
           <div class="txt"><span id="quotaWho">—</span><span id="quotaTxt">— / —</span></div>
+          <!-- 파괴적 동작이라 2단계 — 발급의 rotate 확인과 같은 규칙 -->
+          <div class="revoke">
+            <button class="btn-g btn-sm" id="revokeBtn">키 폐기</button>
+            <button class="btn-g btn-sm" id="purgeBtn" style="display:none">이메일·기록까지 삭제</button>
+            <span id="revokeNote"></span>
+          </div>
         </div>
       </div>
 
@@ -295,6 +317,10 @@
             </div>
             <div class="table-scroll" id="tableWrap" style="display:none"><table class="data" id="respTable"></table></div>
             <pre class="raw-json" id="rawJson"></pre>
+            <div class="pager" id="pager" style="display:none">
+              <button class="btn-g btn-sm" id="nextPageBtn">다음 페이지 →</button>
+              <span id="pagerNote"></span>
+            </div>
             <div class="empty" id="respEmpty">키를 연결하고 호출하면 응답이 여기 표시됩니다</div>
           </div>
         </div>
@@ -307,30 +333,26 @@
 const $ = (id) => document.getElementById(id);
 const nf = new Intl.NumberFormat("ko-KR");
 
+// id 는 domainOf() 가 product_id 앞머리에서 뽑는 값과 같아야 한다 — 다르면 그 도메인 제품이
+// 목록에 안 붙고 '준비 중'으로 뜬다(citydata 를 population 으로 적었던 게 그 경우였다)
 const DOMAINS = [
   { id:"culture",    name:"문화·행사" },
-  { id:"population", name:"인구·도시" },
+  { id:"citydata",   name:"인구·도시" },
   { id:"transit",    name:"대중교통" },
   { id:"commerce",   name:"상권" },
   { id:"weather",    name:"날씨" },
-  { id:"traffic",    name:"교통" },
+  { id:"traffic",    name:"도로 소통" },   // '교통'은 '대중교통'의 부분 문자열이라 나란히 놓이면 구분이 안 됐다
 ];
-const DISPLAY = {
-  culture_activity_by_dong: { title:"행정동별 문화 활동", unit:"행정동 × 날짜" },
-  culture_calendar_density: { title:"구별 행사 캘린더 밀집도", unit:"자치구 × 날짜" },
-  culture_event_schedule:   { title:"문화행사 일정", unit:"행사 = 1행" },
-  culture_event_crowd:      { title:"요일·시간대 혼잡 패턴", unit:"구 × 요일 × 시간" },
-  culture_boxoffice_daily:  { title:"공연 예매 박스오피스", unit:"일 × 순위" },
-  culture_dine_around:      { title:"행사 동네 외식 상권", unit:"행정동 = 1행" },
-  culture_booking_curve:    { title:"공연 예매 오픈 궤적", unit:"공연 = 1행" },
-};
+// 표시명·그레인 — fixtures/build_fixtures.py 가 계약에서 뽑아 두는 생성물.
+// 계약(_catalog)에 display 필드가 없어 서빙 응답에 안 실려오기 때문이고, v1.2 에 들어가면 지운다.
+let DISPLAY = {};
 
 let PRODUCTS = [];
 let activeDomain = "all";
 let query = "";
 
 const domainOf = (p) => (p.product_id || p.name || "").replace(/^gold_/, "").split("_")[0];
-const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id;
+const titleOf = (p) => (DISPLAY[p.product_id] || {}).title || p.product_id || p.name;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 
 // 컬럼 설명 — 정본은 ASAC-DBT 계약(yml). _catalog.columns 는 name·type 만 실어 오므로
@@ -341,7 +363,7 @@ let COLUMN_DOCS = {};
 const JOIN_KEY = /^(admin_dong_code|gu_code|stat_region_cd)$/;
 
 // 앵커 이동 — 브라우저의 로드 시점 점프에 맡길 수 없다. 목록·시작하기가 JS 로 렌더되면서
-// 앵커 위쪽 높이가 바뀌기 때문(홈 헤더의 /catalog#playground·#auth 진입이 맨 위에 떨어지던 원인).
+// 앵커 위쪽 높이가 바뀌기 때문(홈의 '무료로 시작'·하단 버튼이 쓰는 /catalog#auth 진입이 맨 위에 떨어지던 원인).
 // 같은 해시를 다시 눌러도 동작하도록 hashchange 가 아니라 직접 스크롤한다.
 const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
 function goHash(hash, behavior) {
@@ -358,8 +380,9 @@ function goHash(hash, behavior) {
 async function boot() {
   const res = await fetch("/api/catalog");
   PRODUCTS = (await res.json()).products || [];
-  // 설명이 없어도 카탈로그는 그대로 뜬다 — 부가 정보라 실패를 삼킨다
+  // 설명·표시명이 없어도 카탈로그는 그대로 뜬다 — 부가 정보라 실패를 삼킨다
   try { COLUMN_DOCS = await (await fetch("/column-docs.json")).json(); } catch { COLUMN_DOCS = {}; }
+  try { DISPLAY = await (await fetch("/product-display.json")).json(); } catch { DISPLAY = {}; }
   const q0 = new URLSearchParams(location.search).get("q");
   if (q0) { $("q").value = q0; query = q0.trim().toLowerCase(); }
   renderNav(); renderStart(); renderList(); renderSelect();
@@ -398,9 +421,9 @@ function renderStart() {
     step(2, "데이터 고르기", "답하고 싶은 질문으로 찾아보세요", "#catalog") +
     step(3, "바로 호출하기", "curl 한 줄 · JSON 응답", "#playground");
   $("terms").innerHTML =
-    "<span><b>무료</b> 프로토타입</span>" +
-    "<span>키당 하루 <b>1,000회</b> 호출</span>" +
-    "<span>매일 새벽 자동 갱신</span>" +
+    "<span><b>무료</b></span>" +
+    "<span>키당 하루 <b>1,000회</b> · 분당 <b>60회</b></span>" +
+    "<span>매일 1회 갱신</span>" +
     "<span>REST · JSON 표준</span>";
 }
 function fmtFresh(iso) {
@@ -508,6 +531,7 @@ function onTableChange() {
   if (!p) return;
   $("rangeField").style.display = p.time_axis ? "block" : "none";
   $("axisName").textContent = p.time_axis || "";
+  resetPaging();
   updatePreview();
 }
 function buildPath() {
@@ -558,7 +582,11 @@ function friendly(status, body) {
   if (t === "rotate confirmation required") return null; // 별도 확인 플로가 처리
   if (status === 429 && t === "issuance rate limited")
     return "같은 네트워크에서 발급이 잦았어요 — IP당 시간당 5회까지예요. 잠시 뒤 다시 시도해주세요.";
+  if (status === 429 && t === "burst rate limited")
+    return `너무 빠르게 호출했어요 — 분당 60건까지예요. ${(body && body.retry_after) || 60}초 뒤 다시 시도해주세요.`;
   if (status === 429) return "오늘 호출 한도를 모두 썼어요 — 내일 00:00(KST)에 리셋됩니다.";
+  if (status === 409 && t === "cursor expired")
+    return "데이터가 그 사이 새로 발행됐어요 — 첫 페이지부터 다시 받아주세요.";
   if (status === 401) return "키가 유효하지 않아요 — 위 '인증 · API 키'에서 발급하거나 다시 입력해주세요.";
   if (status === 403) return "폐기된 키예요 — 같은 이메일로 재발급하면 새 키를 받을 수 있어요.";
   if (status === 400 && t === "no time axis")
@@ -572,27 +600,49 @@ function showStatus(code, msg) {
   s.className = "status " + (String(code)[0] === "2" ? "ok" : "err");
   $("respMeta").textContent = msg || "";
 }
-async function run() {
+// 페이지 상태 — 커서는 "이 질의를 이어받는 표"라, 질의가 바뀌면(테이블·limit·기간) 버려야 한다
+let pageCursor = null, pageNo = 0, pageRows = 0;
+function resetPaging() {
+  pageCursor = null; pageNo = 0; pageRows = 0;
+  $("pager").style.display = "none";
+  $("pagerNote").textContent = "";
+}
+
+async function run(useCursor) {
   const key = $("pKey").value.trim();
   if (!key) { showStatus(401, "키를 먼저 발급/입력하세요"); return; }
-  $("runBtn").disabled = true;
+  if (!useCursor) resetPaging();
+  const btn = useCursor ? $("nextPageBtn") : $("runBtn");
+  btn.disabled = true;
   try {
-    const res = await fetch(buildPath(), { headers: { authorization: "Bearer " + key } });
+    const path = buildPath() + (useCursor && pageCursor ? "&cursor=" + encodeURIComponent(pageCursor) : "");
+    const res = await fetch(path, { headers: { authorization: "Bearer " + key } });
     const body = await res.json();
     $("rawJson").textContent = JSON.stringify(body, null, 2);
     $("toggleRaw").style.display = "inline";
     $("respEmpty").style.display = "none";
     if (res.ok) {
-      showStatus(res.status, body.row_count + "행 · limit " + body.limit + (body.time_axis ? " · 축 " + body.time_axis : ""));
+      pageNo += 1;
+      pageRows += body.row_count;
+      showStatus(res.status, body.row_count + "행 · limit " + body.limit +
+        (pageNo > 1 ? " · " + pageNo + "페이지(누적 " + nf.format(pageRows) + "행)" : "") +
+        (body.time_axis ? " · 축 " + body.time_axis : ""));
       renderRows(body.rows || []);
       $("rawJson").style.display = "none";
+      pageCursor = body.next_cursor || null;
+      $("pager").style.display = pageNo > 1 || body.has_more ? "flex" : "none";
+      $("nextPageBtn").style.display = body.has_more ? "inline-block" : "none";
+      $("pagerNote").textContent = body.has_more
+        ? "커서 이어받기 — 페이지마다 쿼터 1회"
+        : "마지막 페이지 · 누적 " + nf.format(pageRows) + "행";
     } else {
       showStatus(res.status, friendly(res.status, body));
       $("tableWrap").style.display = "none";
       $("rawJson").style.display = "block";
+      if (res.status === 409) resetPaging();   // 재발행 — 커서를 들고 있어도 의미가 없다
     }
   } catch (e) { showStatus("ERR", String(e)); }
-  finally { $("runBtn").disabled = false; refreshQuota(); }
+  finally { btn.disabled = false; refreshQuota(); }
 }
 
 // 발급은 2단계 — 등록된 이메일이면 서버가 409 를 주고, 버튼이 "재발급 확인" 모드로 바뀐다
@@ -621,8 +671,15 @@ $("issueBtn").addEventListener("click", async () => {
   $("keyReveal").style.display = "block";
   if (body.rotated) $("keyNote").textContent = "기존 키는 방금 폐기되었습니다. 새 키는 지금 한 번만 표시됩니다.";
   $("pKey").value = body.key;
+  resetRevokeUi();   // 새 키다 — 직전 키의 폐기 결과가 남아 있으면 안 된다
   updatePreview(); refreshQuota();
 });
+function resetRevokeUi() {
+  const b = $("revokeBtn");
+  b.style.display = "inline-block"; b.textContent = "키 폐기"; b.dataset.confirm = "";
+  $("purgeBtn").style.display = "none";
+  $("revokeNote").className = ""; $("revokeNote").textContent = "";
+}
 $("email").addEventListener("input", () => { resetIssueBtn(); $("issueErr").textContent = ""; });
 $("keyEye").addEventListener("click", () => {
   const k = $("pKey");
@@ -642,9 +699,50 @@ $("toggleRaw").addEventListener("click", () => {
   $("tableWrap").style.display = show ? "none" : "block";
 });
 $("q").addEventListener("input", () => { query = $("q").value.trim().toLowerCase(); renderList(); });
-$("runBtn").addEventListener("click", run);
+// 폐기 — 되돌릴 수 없으니 한 번 더 묻는다(발급의 rotate 확인과 같은 규칙).
+// 폐기한 키로도 삭제는 되어야 해서(서버가 allowRevoked 로 받는다), 폐기 뒤에 '완전 삭제'가 열린다.
+async function callRevoke(purge) {
+  const key = $("pKey").value.trim();
+  if (!key) { $("revokeNote").textContent = "폐기할 키를 위 칸에 넣어주세요"; return; }
+  const btn = purge ? $("purgeBtn") : $("revokeBtn");
+  btn.disabled = true;
+  try {
+    const res = await fetch("/api/keys" + (purge ? "?purge=true" : ""),
+      { method: "DELETE", headers: { authorization: "Bearer " + key } });
+    const body = await res.json();
+    if (!res.ok) { $("revokeNote").className = ""; $("revokeNote").textContent = friendly(res.status, body); return; }
+    $("revokeNote").className = "done";
+    $("revokeNote").textContent = purge
+      ? "삭제했습니다 — 키·이메일·사용량이 지워졌습니다."
+      : "폐기했습니다 — 이 키는 이제 403입니다. 같은 이메일로 다시 발급할 수 있습니다.";
+    $("purgeBtn").style.display = purge ? "none" : "inline-block";
+    $("revokeBtn").style.display = "none";
+    if (purge) $("pKey").value = "";
+    resetPaging();
+    refreshQuota();
+  } catch (e) { $("revokeNote").className = ""; $("revokeNote").textContent = String(e); }
+  finally { btn.disabled = false; }
+}
+$("revokeBtn").addEventListener("click", () => {
+  const b = $("revokeBtn");
+  if (b.dataset.confirm !== "1") {
+    b.dataset.confirm = "1"; b.textContent = "정말 폐기";
+    $("revokeNote").className = "";
+    $("revokeNote").textContent = "폐기하면 이 키로는 더 이상 호출할 수 없습니다.";
+    return;
+  }
+  b.dataset.confirm = ""; b.textContent = "키 폐기";
+  callRevoke(false);
+});
+$("purgeBtn").addEventListener("click", () => callRevoke(true));
+
+// run(useCursor) 이라 이벤트 객체를 그대로 넘기면 안 된다 — 클릭 이벤트는 truthy 다
+$("runBtn").addEventListener("click", () => run(false));
+$("nextPageBtn").addEventListener("click", () => run(true));
 $("meBtn").addEventListener("click", () => { updatePreview(); refreshQuota(); });
 $("pTable").addEventListener("change", onTableChange);
+// 질의가 바뀌면 들고 있던 커서는 다른 질의의 표가 된다 — 버린다
+for (const id of ["pLimit", "pFrom", "pTo"]) $(id).addEventListener("input", resetPaging);
 for (const id of ["pKey", "pLimit", "pFrom", "pTo"]) $(id).addEventListener("input", updatePreview);
 
 boot();
