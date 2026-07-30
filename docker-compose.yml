@@ -190,6 +190,14 @@ services:
         /entrypoint airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"
         /entrypoint airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"
         /entrypoint airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"
+        # citydata Cosmos(LoadMode.DBT_MANIFEST) 부트스트랩 — 스케줄러가 DAG 파싱 시점에
+        # target/manifest.json 을 읽으므로, fresh 배포에서 없으면 파싱이 죽는다. /opt/airflow/dbt 는
+        # 마운트라 이미지에 구울 수 없어 여기서 생성한다. 전역 DBT_PROJECT_DIR(elt_smoke)는
+        # --project-dir/--profiles-dir 로 override. 실패해도 init 은 계속한다(|| true).
+        CITYDATA_DBT=/opt/airflow/dbt/domains/citydata
+        "$${DBT_BIN}" deps  --project-dir "$${CITYDATA_DBT}" --profiles-dir "$${CITYDATA_DBT}" --no-use-colors || true
+        "$${DBT_BIN}" parse --project-dir "$${CITYDATA_DBT}" --profiles-dir "$${CITYDATA_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true
+        chown -R "$${AIRFLOW_UID}:0" "$${CITYDATA_DBT}/target" "$${CITYDATA_DBT}/dbt_packages" 2>/dev/null || true
     user: "0:0"
     depends_on:
       postgres:
