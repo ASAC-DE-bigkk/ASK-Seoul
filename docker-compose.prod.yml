@@ -1,0 +1,45 @@
+name: elt-infra-prod
+
+x-prod-airflow-image: &prod-airflow-image
+  image: "${ASK_SEOUL_AIRFLOW_IMAGE:?ASK_SEOUL_AIRFLOW_IMAGE must be an immutable digest}"
+  build: !reset null
+
+services:
+  postgres:
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+
+  trino:
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+    volumes: !override
+      - ./trino/catalog-prod:/etc/trino/catalog:ro
+      - ./trino/jvm.config:/etc/trino/jvm.config:ro
+      - ./trino/config.properties:/etc/trino/config.properties:ro
+      - ./trino/resource-groups.properties:/etc/trino/resource-groups.properties:ro
+      - ./trino/resource-groups.json:/etc/trino/resource-groups.json:ro
+
+  airflow-init:
+    <<: *prod-airflow-image
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+  airflow-apiserver:
+    <<: *prod-airflow-image
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+  airflow-scheduler:
+    <<: *prod-airflow-image
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+  airflow-dag-processor:
+    <<: *prod-airflow-image
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+  airflow-triggerer:
+    <<: *prod-airflow-image
+    env_file: !override
+      - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+
+networks:
+  elt_net:
+    name: elt-infra-prod-net
