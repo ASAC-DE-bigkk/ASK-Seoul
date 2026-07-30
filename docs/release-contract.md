@@ -1,6 +1,8 @@
-# Weather/Traffic prod release contract
+# 전 도메인 prod release contract
 
-prod 승격 단위는 root와 세 submodule, Airflow 이미지 digest를 함께 고정한 JSON release artifact다. artifact는 root commit을 만든 뒤 생성한다. artifact가 자기 자신을 포함한 root commit을 참조하는 순환을 피하면서도, deploy는 artifact가 지정한 clean checkout에서만 시작할 수 있다.
+이 계약은 Weather/Traffic에 한정되지 않는다. root Compose가 모든 Airflow service와 모든 domain DAG에 같은 `.env.prod`, Trino catalog, submodule 조합을 주입하므로, prod 승격 단위는 root와 세 submodule, Airflow 이미지 digest를 함께 고정한 JSON release artifact다. artifact는 root commit을 만든 뒤 생성한다. artifact가 자기 자신을 포함한 root commit을 참조하는 순환을 피하면서도, deploy는 artifact가 지정한 clean checkout에서만 시작할 수 있다.
+
+따라서 이 gate를 사용하는 PR은 플랫폼 변경으로 분류하고 Weather·Traffic, commerce, citydata, culture, transit 등 영향을 받는 domain owner 확인을 받아야 한다. 이 문서는 특정 domain의 data contract 또는 canary 성공을 대신 승인하지 않는다.
 
 ## 생성
 
@@ -8,7 +10,7 @@ clean checkout에서 네 component SHA와 registry에 push한 Airflow image dige
 
 ```powershell
 python scripts/release_contract.py create `
-  --release-name weather-traffic-prod-YYYYMMDD `
+  --release-name ask-seoul-prod-YYYYMMDD `
   --root-sha <40-char-root-sha> `
   --dags-sha <40-char-dags-sha> `
   --dbt-sha <40-char-dbt-sha> `

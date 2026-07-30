@@ -1,4 +1,4 @@
-"""Create and validate the immutable Weather/Traffic prod release contract.
+"""Create and validate the immutable shared prod release contract.
 
 The release artifact is intentionally generated *after* an exact root commit
 and image have been selected.  This avoids a self-referential root SHA while
