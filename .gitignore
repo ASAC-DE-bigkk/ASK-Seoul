@@ -18,3 +18,6 @@ __pycache__/
 .pytest_cache/
 
 .DS_Store
+
+# 로컬 env 대조/작업용 폴더 — 실키 포함 가능성, 절대 커밋 금지('.env (1).dev' 류 공백 파일명은 기존 .env.* 패턴 미커버 실증)
+diff/
