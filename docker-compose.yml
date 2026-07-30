@@ -150,7 +150,14 @@ services:
       TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-2GB}
       TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-4GB}
     volumes:
-      - ./trino/catalog:/etc/trino/catalog:ro
+      # Iceberg 카탈로그는 **템플릿 1개**를 env 가 정한 이름으로 마운트해 만든다.
+      # Trino 는 파일명 = 카탈로그명이므로, 이름을 env 에서 받으면 타깃 전환이 곧 카탈로그
+      # 전환이 된다: prod → iceberg / dev → iceberg_dev (TRINO_ICEBERG_CATALOG).
+      # 자격은 canonical R2_* 한 세트(ENV2)라 파일 내용은 타깃과 무관 — 그래서 파일이 하나다.
+      # (구조: 과거엔 iceberg/iceberg_dev 두 파일이 각각 R2_*/R2_DEV_* 를 읽었고, ENV2 가
+      #  R2_DEV_* 를 없애자 dev 파일만 참조 불가가 되어 Trino 가 기동 실패했다. 파일이 둘이라
+      #  한쪽이 drift 한 것이 원인이므로 하나로 합친다.)
+      - ./trino/iceberg.properties:/etc/trino/catalog/${TRINO_ICEBERG_CATALOG:-iceberg}.properties:ro
       # 저메모리 환경 안정성(commerce gold detail json 추출 OOM 회피) — 힙 상한 + spill(파일시스템=스왑).
       # 미마운트면 기본(MaxRAMPercentage=80·spill off)로 복귀해 대형 detail 적재 시 OS OOM-kill 위험.
       # 상세: dags/domains/commerce/change-log.md #59.
