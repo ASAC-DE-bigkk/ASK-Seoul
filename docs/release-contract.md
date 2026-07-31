@@ -37,3 +37,18 @@ preflight는 다음을 모두 거부한다.
 - clean checkout의 root/dags/dbt/dashboard SHA 또는 image가 artifact와 다른 경우
 
 `docker-compose.prod.yml`은 prod env만 읽고 Trino에 `trino/catalog-prod` 하나만 mount한다. 이 catalog는 prod R2와 Data Catalog tuple만 참조한다.
+
+## prod lineage control-plane
+
+release wrapper는 prod Compose 실행마다 `lineage` profile을 포함한다. 따라서 Marquez DB/API/UI가 prod stack과 함께 기동되고 Airflow와 dbt OpenLineage event를 수신한다.
+
+- Airflow namespace는 `ask-seoul-prod-airflow`로 고정한다.
+- dbt namespace의 root는 `ask-seoul-prod-dbt`이며, 각 domain 실행 helper가 `<domain>` suffix를 붙여 job 충돌을 방지한다.
+- Airflow selective enable을 유지하고 source code facet과 full task payload는 보내지 않는다.
+- Trino OpenLineage listener는 사용하지 않는다. Airflow/dbt가 소유한 실행 경계만 수집한다.
+- Marquez API/UI host port는 loopback에만 노출한다.
+- Marquez DB credential은 Airflow metadata DB와 분리하고 prod preflight의 필수 tuple로 검사한다.
+- `marquez.prod.yml`을 명시적으로 mount한다. image 기본 `marquez.dev.yml`과 기본 credential은 prod에서 사용하지 않는다.
+- lineage transport 장애는 data task를 실패시키지 않는 fail-open 계약을 유지한다.
+
+Marquez는 lineage control-plane이다. 품질 pass/fail, SLA, row count, dbt test 결과의 authoritative source는 기존 run metadata, R2 metrics/errors, dbt artifact와 contract다.

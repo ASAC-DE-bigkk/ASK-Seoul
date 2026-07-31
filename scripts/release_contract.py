@@ -46,6 +46,9 @@ _REQUIRED_PROD_NAMES = (
     "SERVING_CLOUDFLARE_ACCOUNT_ID",
     "SERVING_D1_DATABASE_ID",
     "ASK_SEOUL_AIRFLOW_IMAGE",
+    "MARQUEZ_POSTGRES_USER",
+    "MARQUEZ_POSTGRES_PASSWORD",
+    "MARQUEZ_POSTGRES_DB",
 )
 
 
@@ -224,6 +227,8 @@ def run_prod_compose(*, env_file: Path, artifact_file: Path, compose_args: list[
         [
             "docker",
             "compose",
+            "--profile",
+            "lineage",
             "--env-file",
             str(env_file.resolve()),
             "-f",
