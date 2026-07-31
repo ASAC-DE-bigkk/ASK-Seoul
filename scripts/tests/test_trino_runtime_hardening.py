@@ -95,6 +95,42 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
         self.assertEqual(1, self.compose.count("airflow pools import"))
         self.assertNotIn("airflow pools set", self.compose)
 
+    def test_traffic_weather_manifest_is_bootstrapped_without_blocking_airflow_init(
+        self,
+    ):
+        airflow_init = self.compose[
+            self.compose.index("  airflow-init:") : self.compose.index(
+                "  airflow-apiserver:"
+            )
+        ]
+        bootstrap_commands = (
+            "TW_DBT=/opt/airflow/dbt/domains/traffic_weather",
+            '"$${DBT_BIN}" deps  --project-dir "$${TW_DBT}" --profiles-dir '
+            '"$${TW_DBT}" --no-use-colors || true',
+            '"$${DBT_BIN}" parse --project-dir "$${TW_DBT}" --profiles-dir '
+            '"$${TW_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true',
+            'if test -s "$${TW_DBT}/target/manifest.json"; then',
+            "traffic_weather dbt manifest ready",
+            "WARNING: traffic_weather target/manifest.json is missing; "
+            "Weather/Traffic serving DAGs may fail until dbt parse succeeds.",
+            'chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" '
+            '"$${TW_DBT}/dbt_packages" 2>/dev/null || true',
+        )
+        for command in bootstrap_commands:
+            with self.subTest(command=command):
+                self.assertIn(command, airflow_init)
+                self.assertEqual(1, airflow_init.count(command))
+
+        if all(command in airflow_init for command in bootstrap_commands):
+            command_offsets = [
+                airflow_init.index(command) for command in bootstrap_commands
+            ]
+            self.assertEqual(sorted(command_offsets), command_offsets)
+        self.assertNotIn(
+            'test -s "$${TW_DBT}/target/manifest.json" || exit 1',
+            airflow_init,
+        )
+
     def test_pool_registry_cli_emits_airflow_import_payload(self):
         registry_script = ROOT / "dags/common/pools.py"
         self.assertTrue(registry_script.exists(), "pool registry CLI must exist")

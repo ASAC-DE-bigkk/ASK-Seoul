@@ -205,6 +205,18 @@ services:
         "$${DBT_BIN}" deps  --project-dir "$${CITYDATA_DBT}" --profiles-dir "$${CITYDATA_DBT}" --no-use-colors || true
         "$${DBT_BIN}" parse --project-dir "$${CITYDATA_DBT}" --profiles-dir "$${CITYDATA_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true
         chown -R "$${AIRFLOW_UID}:0" "$${CITYDATA_DBT}/target" "$${CITYDATA_DBT}/dbt_packages" 2>/dev/null || true
+        # Weather/Traffic serving publisher도 shared target/manifest.json을 읽는다. transform task의
+        # attempt-local target은 건드리지 않는다. /opt/airflow/dbt는 마운트라 이미지에 구울 수 없어
+        # fresh 배포 시 여기서 생성한다. dbt 실패는 다른 도메인 기동을 막지 않되, manifest 부재는 남긴다.
+        TW_DBT=/opt/airflow/dbt/domains/traffic_weather
+        "$${DBT_BIN}" deps  --project-dir "$${TW_DBT}" --profiles-dir "$${TW_DBT}" --no-use-colors || true
+        "$${DBT_BIN}" parse --project-dir "$${TW_DBT}" --profiles-dir "$${TW_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true
+        if test -s "$${TW_DBT}/target/manifest.json"; then
+          echo "traffic_weather dbt manifest ready"
+        else
+          echo "WARNING: traffic_weather target/manifest.json is missing; Weather/Traffic serving DAGs may fail until dbt parse succeeds." >&2
+        fi
+        chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" "$${TW_DBT}/dbt_packages" 2>/dev/null || true
     user: "0:0"
     depends_on:
       postgres:
