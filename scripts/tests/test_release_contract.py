@@ -39,7 +39,37 @@ def _prod_values() -> dict[str, str]:
         "SERVING_CLOUDFLARE_ACCOUNT_ID": "account",
         "SERVING_D1_DATABASE_ID": "database",
         "ASK_SEOUL_AIRFLOW_IMAGE": "ghcr.io/example/airflow@sha256:" + "a" * 64,
+        "MARQUEZ_POSTGRES_USER": "marquez",
+        "MARQUEZ_POSTGRES_PASSWORD": "marquez-password",
+        "MARQUEZ_POSTGRES_DB": "marquez",
     }
+
+
+def _run_git(repo: Path, *args: str) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return completed.stdout.strip()
+
+
+def _init_repo(repo: Path) -> str:
+    repo.mkdir(parents=True, exist_ok=True)
+    _run_git(repo, "init", "-q")
+    _run_git(repo, "config", "user.email", "tests@example.invalid")
+    _run_git(repo, "config", "user.name", "Tests")
+    (repo / "README.md").write_text(f"# {repo.name}\n", encoding="utf-8")
+    _run_git(repo, "add", "README.md")
+    _run_git(repo, "commit", "-q", "-m", "init")
+    return _run_git(repo, "rev-parse", "HEAD")
+
+
+def _init_component_root(root: Path) -> None:
+    _init_repo(root)
+    for component in ("dags", "dbt", "dashboard"):
+        _init_repo(root / component)
 
 
 class ReleaseContractTest(unittest.TestCase):
@@ -105,6 +135,7 @@ class ReleaseContractTest(unittest.TestCase):
             env_file = temporary_root / ".env.prod"
             artifact_file = temporary_root / "release.json"
             values = _prod_values()
+            _init_component_root(temporary_root)
             env_file.write_text(
                 "\n".join(f"{name}={value}" for name, value in values.items()),
                 encoding="utf-8",
@@ -113,7 +144,7 @@ class ReleaseContractTest(unittest.TestCase):
                 json.dumps(
                     module.build_release_artifact(
                         release_name="weather-traffic-prod-test",
-                        commits=module._current_component_commits(ROOT),
+                        commits=module._current_component_commits(temporary_root),
                         airflow_image=values["ASK_SEOUL_AIRFLOW_IMAGE"],
                     )
                 ),
@@ -121,7 +152,11 @@ class ReleaseContractTest(unittest.TestCase):
             )
 
             with mock.patch.object(module, "_component_is_clean", return_value=True):
-                module.preflight(env_file=env_file, artifact_file=artifact_file)
+                module.preflight(
+                    env_file=env_file,
+                    artifact_file=artifact_file,
+                    root=temporary_root,
+                )
 
     def test_preflight_rejects_a_dirty_root_or_submodule(self):
         module = _module()
@@ -130,7 +165,8 @@ class ReleaseContractTest(unittest.TestCase):
             env_file = temporary_root / ".env.prod"
             artifact_file = temporary_root / "release.json"
             values = _prod_values()
-            commits = module._current_component_commits(ROOT)
+            _init_component_root(temporary_root)
+            commits = module._current_component_commits(temporary_root)
             env_file.write_text(
                 "\n".join(f"{name}={value}" for name, value in values.items()),
                 encoding="utf-8",
@@ -153,7 +189,25 @@ class ReleaseContractTest(unittest.TestCase):
                 create=True,
             ):
                 with self.assertRaisesRegex(module.ReleaseContractError, "not clean"):
-                    module.preflight(env_file=env_file, artifact_file=artifact_file)
+                    module.preflight(
+                        env_file=env_file,
+                        artifact_file=artifact_file,
+                        root=temporary_root,
+                    )
+
+    def test_current_component_commits_rejects_uninitialized_component_path(self):
+        module = _module()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            _init_repo(temporary_root)
+            _init_repo(temporary_root / "dags")
+            _init_repo(temporary_root / "dbt")
+            (temporary_root / "dashboard").mkdir()
+
+            with self.assertRaisesRegex(
+                module.ReleaseContractError, "component checkout"
+            ):
+                module._current_component_commits(temporary_root)
 
     def test_prod_overlay_mounts_only_prod_catalog(self):
         compose = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
