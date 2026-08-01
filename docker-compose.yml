@@ -197,6 +197,15 @@ services:
         python /opt/airflow/dags/common/pools.py > /tmp/ask-seoul-airflow-pools.json || exit 1
         test -s /tmp/ask-seoul-airflow-pools.json || exit 1
         /entrypoint airflow pools import /tmp/ask-seoul-airflow-pools.json || exit 1
+        # culture_slo.load_dag_runs 가 메타DB를 읽는 Connection(#81-1). 스택 재구축 시 메타DB
+        # 볼륨과 함께 사라지므로 init 에서 등록한다 — 접속문자열은 기존 env 재사용(값 미노출).
+        # 볼륨이 유지된 재기동에선 이미 존재해 add 가 실패하므로 존재 확인 후에만 등록하고,
+        # 등록 실패는 다른 도메인 기동을 막지 않되 경고를 남긴다(traffic_weather manifest 선례).
+        if ! /entrypoint airflow connections get airflow_metadb >/dev/null 2>&1; then
+          /entrypoint airflow connections add airflow_metadb \
+            --conn-uri "$${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN/postgresql+psycopg2/postgres}" \
+            || echo "WARNING: airflow_metadb connection registration failed; culture_slo.load_dag_runs will skip and bronze_culture_dag_runs will go stale (#81)." >&2
+        fi
         # citydata Cosmos(LoadMode.DBT_MANIFEST) 부트스트랩 — 스케줄러가 DAG 파싱 시점에
         # target/manifest.json 을 읽으므로, fresh 배포에서 없으면 파싱이 죽는다. /opt/airflow/dbt 는
         # 마운트라 이미지에 구울 수 없어 여기서 생성한다. 전역 DBT_PROJECT_DIR(elt_smoke)는
