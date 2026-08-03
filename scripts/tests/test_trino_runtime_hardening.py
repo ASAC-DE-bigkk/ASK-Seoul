@@ -148,6 +148,7 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             "trino_traffic_heavy",
             "trino_traffic_ingest",
             "trino_traffic_transform",
+            "trino_transit_heavy",
             "trino_weather_heavy",
             "trino_weather_legacy_heavy",
             "trino_weather_recovery_heavy",

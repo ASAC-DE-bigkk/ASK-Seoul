@@ -158,6 +158,20 @@ def _current_component_commits(root: Path) -> dict[str, str]:
     paths = {"root": root, "dags": root / "dags", "dbt": root / "dbt", "dashboard": root / "dashboard"}
     commits: dict[str, str] = {}
     for name, path in paths.items():
+        expected_toplevel = path.resolve()
+        if not path.exists():
+            raise ReleaseContractError(f"component checkout path is missing: {name}")
+        toplevel_result = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if (
+            toplevel_result.returncode != 0
+            or Path(toplevel_result.stdout.strip()).resolve() != expected_toplevel
+        ):
+            raise ReleaseContractError(f"component checkout is not initialized: {name}")
         result = subprocess.run(
             ["git", "-C", str(path), "rev-parse", "HEAD"],
             capture_output=True,
