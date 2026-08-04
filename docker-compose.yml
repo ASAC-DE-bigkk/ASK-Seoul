@@ -145,10 +145,16 @@ services:
       TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
       # 9 GiB container 기본값 × MaxRAMPercentage=55 ≈ 4.95 GiB heap.
       # query user memory 2 GiB + 비추적 heap headroom 2 GiB < max heap 을 유지한다.
-      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-2GB}
-      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2GB}
-      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-2GB}
-      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-4GB}
+      # 메모리 기본값은 실측으로 정했다(ASK-Seoul#94, 맥미니 M4/16GB).
+      #   힙 4.97GiB(= 컨테이너 9GiB x MaxRAMPercentage 55)
+      #   비쿼리 실사용 3.66GiB > 기존 headroom 2GB  → 풀이 선언값의 44% 만 실재
+      #   보관 쿼리 401건 peak 최대 551MiB          → per-node 2GB 는 과다 배정
+      # headroom 2500MB 로 현실에 맞추고(풀 = 4.97GiB - 2.5GB ~= 2.47GB),
+      # per-node 800MB 로 낮춰 동시성 3 이 풀 안에 들어오게 한다(3 x 800MB = 2.4GB).
+      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-800MB}
+      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2500MB}
+      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-800MB}
+      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1600MB}
     volumes:
       # Iceberg 카탈로그는 **템플릿 1개**를 env 가 정한 이름으로 마운트해 만든다.
       # Trino 는 파일명 = 카탈로그명이므로, 이름을 env 에서 받으면 타깃 전환이 곧 카탈로그
