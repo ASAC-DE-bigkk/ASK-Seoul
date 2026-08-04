@@ -13,6 +13,15 @@ x-airflow-common: &airflow-common
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
     AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    # 동시 태스크 상한(#98) — Airflow 기본값 parallelism 32 / per-DAG 16 은 이 VM(13.63GiB)에
+    # 과대하다. Cosmos 는 **dbt 모델 1개 = Airflow 태스크 1개 = dbt 서브프로세스 1개** 라,
+    # commerce_load_gold 혼자 16개를 동시에 띄운다(2026-08-04 16:02 실측: 1분에 17건 동시 시작).
+    # dbt 프로세스 수백 MB x 16 + Trino RSS ~7GiB 가 겹치면 VM 이 고갈되고, 커널 global OOM
+    # killer 가 **가장 큰 프로세스 = Trino** 를 SIGKILL 한다 → 전 도메인 쿼리 동시 실패.
+    # 8 = Trino RSS 5.5 + Airflow 코어 2.7 + dbt 8x0.45 3.6 + VM OS 0.5 ~= 12.3GiB < 13.63GiB.
+    # per-DAG 6 은 한 DAG 이 8슬롯을 독식해 타 도메인을 굶기지 않게 하는 몫이다.
+    AIRFLOW__CORE__PARALLELISM: "8"
+    AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: "6"
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_SECRET_KEY}
@@ -135,7 +144,15 @@ services:
   trino:
     image: trinodb/trino:482
     restart: unless-stopped
-    mem_limit: ${TRINO_MEMORY_LIMIT:-9g}
+    # 7g = **프로세스 RSS 상한**이지 힙 상한이 아니다. Trino 를 죽인 것은 힙이 아니라
+    # RSS 였다(ASK-Seoul#98): VM 커널 global OOM killer 가 5회 SIGKILL, 피해자 전부
+    # trino-server-co, anon-rss 5.77~7.02GiB. 4/5 는 constraint=CONSTRAINT_NONE(global_oom)
+    # = 컨테이너 9g 한도가 아니라 **VM(13.63GiB) 전체 고갈**이었다.
+    # 힙은 MaxRAMPercentage x 이 값이므로 여기를 줄여야 RSS 가 준다(9g x 55% = 4.97GiB 힙
+    # + 비힙 ~2GiB = RSS ~7GiB → 7g x 50% = 3.5GiB 힙 + 비힙 ~2GiB = RSS ~5.5GiB).
+    # 이 한도를 넘으면 memcg 가 **Trino 만** 죽이고 OOMKilled=true 로 보고된다 —
+    # global OOM(누구를 죽일지 커널이 고름 · OOMKilled=false 로 은폐)보다 훨씬 낫다.
+    mem_limit: ${TRINO_MEMORY_LIMIT:-7g}
     env_file:
       - .env
     environment:
@@ -143,18 +160,16 @@ services:
       # 노드별 병렬도(고사양 자동 최적화 노브) — 기본 2(공유 VM 저사양 안전). 고사양 노드는
       # host .env 에 TRINO_TASK_CONCURRENCY=16 등으로 상향. config.properties 가 ${ENV:} 로 참조.
       TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
-      # 9 GiB container 기본값 × MaxRAMPercentage=55 ≈ 4.95 GiB heap.
-      # query user memory 2 GiB + 비추적 heap headroom 2 GiB < max heap 을 유지한다.
-      # 메모리 기본값은 실측으로 정했다(ASK-Seoul#94, 맥미니 M4/16GB).
-      #   힙 4.97GiB(= 컨테이너 9GiB x MaxRAMPercentage 55)
-      #   비쿼리 실사용 3.66GiB > 기존 headroom 2GB  → 풀이 선언값의 44% 만 실재
-      #   보관 쿼리 401건 peak 최대 551MiB          → per-node 2GB 는 과다 배정
-      # headroom 2500MB 로 현실에 맞추고(풀 = 4.97GiB - 2.5GB ~= 2.47GB),
-      # per-node 800MB 로 낮춰 동시성 3 이 풀 안에 들어오게 한다(3 x 800MB = 2.4GB).
-      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-800MB}
-      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2500MB}
-      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-800MB}
-      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1600MB}
+      # 쿼리 예산은 **줄어든 힙(7g x 50% = 3.5GiB)** 에 맞춰 재산정한다(#98).
+      #   풀 = 3.5GiB - headroom 1500MB ~= 2.04GiB
+      #   per-node 700MB x 동시성 2 = 1.4GB <= 2.04GiB  (여유 33%)
+      #   보관 쿼리 peak 최대 551MiB(#94 실측) < 700MB  → 관측 최대치를 덮는다
+      # 이 값들은 Trino **내부 회계**만 바꾼다 — RSS 를 줄이는 것은 위의 mem_limit 과
+      # jvm.config 의 MaxRAMPercentage 다. #94 가 이 칸만 만지고 크래시를 못 잡은 이유다.
+      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-700MB}
+      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-1500MB}
+      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-700MB}
+      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1400MB}
     volumes:
       # Iceberg 카탈로그는 **템플릿 1개**를 env 가 정한 이름으로 마운트해 만든다.
       # Trino 는 파일명 = 카탈로그명이므로, 이름을 env 에서 받으면 타깃 전환이 곧 카탈로그
