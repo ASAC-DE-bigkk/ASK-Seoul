@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -78,15 +80,92 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             self.compose,
         )
 
-    def test_airflow_pools_are_bootstrapped_idempotently(self):
-        expected_pool_commands = {
-            'airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"',
-            'airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"',
-            'airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"',
-        }
-        for command in expected_pool_commands:
+    def test_airflow_pools_are_bootstrapped_from_registry(self):
+        registry_commands = (
+            "python /opt/airflow/dags/common/pools.py > "
+            "/tmp/ask-seoul-airflow-pools.json || exit 1",
+            "test -s /tmp/ask-seoul-airflow-pools.json || exit 1",
+            "/entrypoint airflow pools import "
+            "/tmp/ask-seoul-airflow-pools.json || exit 1",
+        )
+        for command in registry_commands:
+            self.assertIn(command, self.compose)
+        command_offsets = [self.compose.index(command) for command in registry_commands]
+        self.assertEqual(sorted(command_offsets), command_offsets)
+        self.assertEqual(1, self.compose.count("airflow pools import"))
+        self.assertNotIn("airflow pools set", self.compose)
+
+    def test_traffic_weather_manifest_is_bootstrapped_without_blocking_airflow_init(
+        self,
+    ):
+        airflow_init = self.compose[
+            self.compose.index("  airflow-init:") : self.compose.index(
+                "  airflow-apiserver:"
+            )
+        ]
+        bootstrap_commands = (
+            "TW_DBT=/opt/airflow/dbt/domains/traffic_weather",
+            '"$${DBT_BIN}" deps  --project-dir "$${TW_DBT}" --profiles-dir '
+            '"$${TW_DBT}" --no-use-colors || true',
+            '"$${DBT_BIN}" parse --project-dir "$${TW_DBT}" --profiles-dir '
+            '"$${TW_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true',
+            'if test -s "$${TW_DBT}/target/manifest.json"; then',
+            "traffic_weather dbt manifest ready",
+            "WARNING: traffic_weather target/manifest.json is missing; "
+            "Weather/Traffic serving DAGs may fail until dbt parse succeeds.",
+            'chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" '
+            '"$${TW_DBT}/dbt_packages" 2>/dev/null || true',
+        )
+        for command in bootstrap_commands:
             with self.subTest(command=command):
-                self.assertIn(command, self.compose)
+                self.assertIn(command, airflow_init)
+                self.assertEqual(1, airflow_init.count(command))
+
+        if all(command in airflow_init for command in bootstrap_commands):
+            command_offsets = [
+                airflow_init.index(command) for command in bootstrap_commands
+            ]
+            self.assertEqual(sorted(command_offsets), command_offsets)
+        self.assertNotIn(
+            'test -s "$${TW_DBT}/target/manifest.json" || exit 1',
+            airflow_init,
+        )
+
+    def test_pool_registry_cli_emits_airflow_import_payload(self):
+        registry_script = ROOT / "dags/common/pools.py"
+        self.assertTrue(registry_script.exists(), "pool registry CLI must exist")
+
+        completed = subprocess.run(
+            [sys.executable, "common/pools.py"],
+            cwd=ROOT / "dags",
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        payload = json.loads(completed.stdout)
+        expected_pool_names = {
+            "trino_heavy",
+            "trino_traffic_heavy",
+            "trino_traffic_ingest",
+            "trino_traffic_transform",
+            "trino_transit_heavy",
+            "trino_weather_heavy",
+            "trino_weather_legacy_heavy",
+            "trino_weather_recovery_heavy",
+        }
+        self.assertIsInstance(payload, dict)
+        self.assertEqual(expected_pool_names, set(payload))
+        for pool_name, pool_config in payload.items():
+            with self.subTest(pool_name=pool_name):
+                self.assertEqual(
+                    {"slots", "description", "include_deferred"},
+                    set(pool_config),
+                )
+                self.assertIs(type(pool_config["slots"]), int)
+                self.assertGreater(pool_config["slots"], 0)
+                self.assertIsInstance(pool_config["description"], str)
+                self.assertTrue(pool_config["description"])
+                self.assertIs(type(pool_config["include_deferred"]), bool)
 
 
 if __name__ == "__main__":

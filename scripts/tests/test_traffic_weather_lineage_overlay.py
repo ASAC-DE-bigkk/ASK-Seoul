@@ -203,7 +203,7 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
             with self.subTest(binding=binding):
                 self.assertIn(binding, self.base)
 
-    def test_marquez_services_are_always_on_and_supervised(self) -> None:
+    def test_marquez_services_are_lineage_profile_scoped_and_supervised(self) -> None:
         for service_name in ("marquez-db", "marquez-api", "marquez-web"):
             with self.subTest(service=service_name):
                 service_block = re.search(
@@ -212,7 +212,7 @@ class TrafficWeatherLineageOverlayTest(unittest.TestCase):
                 )
                 self.assertIsNotNone(service_block)
                 block = service_block.group("block")
-                self.assertNotIn("profiles:", block)
+                self.assertIn('profiles: ["lineage"]', block)
                 self.assertIn("restart: unless-stopped", block)
                 self.assertNotIn("mem_limit:", block)
 

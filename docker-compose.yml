@@ -145,10 +145,16 @@ services:
       TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
       # 9 GiB container 기본값 × MaxRAMPercentage=55 ≈ 4.95 GiB heap.
       # query user memory 2 GiB + 비추적 heap headroom 2 GiB < max heap 을 유지한다.
-      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-2GB}
-      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2GB}
-      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-2GB}
-      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-4GB}
+      # 메모리 기본값은 실측으로 정했다(ASK-Seoul#94, 맥미니 M4/16GB).
+      #   힙 4.97GiB(= 컨테이너 9GiB x MaxRAMPercentage 55)
+      #   비쿼리 실사용 3.66GiB > 기존 headroom 2GB  → 풀이 선언값의 44% 만 실재
+      #   보관 쿼리 401건 peak 최대 551MiB          → per-node 2GB 는 과다 배정
+      # headroom 2500MB 로 현실에 맞추고(풀 = 4.97GiB - 2.5GB ~= 2.47GB),
+      # per-node 800MB 로 낮춰 동시성 3 이 풀 안에 들어오게 한다(3 x 800MB = 2.4GB).
+      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-800MB}
+      TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2500MB}
+      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-800MB}
+      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1600MB}
     volumes:
       # Iceberg 카탈로그는 **템플릿 1개**를 env 가 정한 이름으로 마운트해 만든다.
       # Trino 는 파일명 = 카탈로그명이므로, 이름을 env 에서 받으면 타깃 전환이 곧 카탈로그
@@ -194,9 +200,18 @@ services:
           --role Admin \
           --email "$${AIRFLOW_ADMIN_EMAIL}" \
           --password "$${AIRFLOW_ADMIN_PASSWORD}" || true
-        /entrypoint airflow pools set trino_traffic_heavy 1 "Serialize Traffic Trino writes and exact tests"
-        /entrypoint airflow pools set trino_weather_heavy 1 "Serialize Weather Trino writes and recovery"
-        /entrypoint airflow pools set trino_heavy 1 "Serialize Trino/dbt memory-heavy tasks"
+        python /opt/airflow/dags/common/pools.py > /tmp/ask-seoul-airflow-pools.json || exit 1
+        test -s /tmp/ask-seoul-airflow-pools.json || exit 1
+        /entrypoint airflow pools import /tmp/ask-seoul-airflow-pools.json || exit 1
+        # culture_slo.load_dag_runs 가 메타DB를 읽는 Connection(#81-1). 스택 재구축 시 메타DB
+        # 볼륨과 함께 사라지므로 init 에서 등록한다 — 접속문자열은 기존 env 재사용(값 미노출).
+        # 볼륨이 유지된 재기동에선 이미 존재해 add 가 실패하므로 존재 확인 후에만 등록하고,
+        # 등록 실패는 다른 도메인 기동을 막지 않되 경고를 남긴다(traffic_weather manifest 선례).
+        if ! /entrypoint airflow connections get airflow_metadb >/dev/null 2>&1; then
+          /entrypoint airflow connections add airflow_metadb \
+            --conn-uri "$${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN/postgresql+psycopg2/postgres}" \
+            || echo "WARNING: airflow_metadb connection registration failed; culture_slo.load_dag_runs will skip and bronze_culture_dag_runs will go stale (#81)." >&2
+        fi
         # citydata Cosmos(LoadMode.DBT_MANIFEST) 부트스트랩 — 스케줄러가 DAG 파싱 시점에
         # target/manifest.json 을 읽으므로, fresh 배포에서 없으면 파싱이 죽는다. /opt/airflow/dbt 는
         # 마운트라 이미지에 구울 수 없어 여기서 생성한다. 전역 DBT_PROJECT_DIR(elt_smoke)는
@@ -205,6 +220,18 @@ services:
         "$${DBT_BIN}" deps  --project-dir "$${CITYDATA_DBT}" --profiles-dir "$${CITYDATA_DBT}" --no-use-colors || true
         "$${DBT_BIN}" parse --project-dir "$${CITYDATA_DBT}" --profiles-dir "$${CITYDATA_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true
         chown -R "$${AIRFLOW_UID}:0" "$${CITYDATA_DBT}/target" "$${CITYDATA_DBT}/dbt_packages" 2>/dev/null || true
+        # Weather/Traffic serving publisher도 shared target/manifest.json을 읽는다. transform task의
+        # attempt-local target은 건드리지 않는다. /opt/airflow/dbt는 마운트라 이미지에 구울 수 없어
+        # fresh 배포 시 여기서 생성한다. dbt 실패는 다른 도메인 기동을 막지 않되, manifest 부재는 남긴다.
+        TW_DBT=/opt/airflow/dbt/domains/traffic_weather
+        "$${DBT_BIN}" deps  --project-dir "$${TW_DBT}" --profiles-dir "$${TW_DBT}" --no-use-colors || true
+        "$${DBT_BIN}" parse --project-dir "$${TW_DBT}" --profiles-dir "$${TW_DBT}" --target "$${DBT_TARGET:-dev}" --no-use-colors || true
+        if test -s "$${TW_DBT}/target/manifest.json"; then
+          echo "traffic_weather dbt manifest ready"
+        else
+          echo "WARNING: traffic_weather target/manifest.json is missing; Weather/Traffic serving DAGs may fail until dbt parse succeeds." >&2
+        fi
+        chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" "$${TW_DBT}/dbt_packages" 2>/dev/null || true
     user: "0:0"
     depends_on:
       postgres:
