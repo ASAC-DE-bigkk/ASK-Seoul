@@ -160,16 +160,20 @@ services:
       # 노드별 병렬도(고사양 자동 최적화 노브) — 기본 2(공유 VM 저사양 안전). 고사양 노드는
       # host .env 에 TRINO_TASK_CONCURRENCY=16 등으로 상향. config.properties 가 ${ENV:} 로 참조.
       TRINO_TASK_CONCURRENCY: ${TRINO_TASK_CONCURRENCY:-2}
-      # 쿼리 예산은 **줄어든 힙(7g x 50% = 3.5GiB)** 에 맞춰 재산정한다(#98).
-      #   풀 = 3.5GiB - headroom 1500MB ~= 2.04GiB
-      #   per-node 700MB x 동시성 2 = 1.4GB <= 2.04GiB  (여유 33%)
-      #   보관 쿼리 peak 최대 551MiB(#94 실측) < 700MB  → 관측 최대치를 덮는다
+      # 쿼리 예산은 **줄어든 힙(7g x 50% = 3.5GiB)** 안에서 배분한다(#98).
+      #   풀 = 3.5GiB(3584MB) - headroom 1500MB = 2084MB
+      #   per-node 1000MB x 동시성 2 = 2000MB <= 2084MB
+      # per-node 는 **실측으로 정했다**. 처음 700MB 로 잡았다가 weather 의
+      # dbt_run_place_mart 가 죽었다: "exceeded per-node memory limit of 700MB
+      # [Allocated: 695.71MB, Delta: 8.78MB, TopNRankingOperator=664.60MB]" — 필요량
+      # 704.5MB 를 5MB 차이로 못 넘겼다(기존 800MB 는 96MB 여유로 겨우 통과하고 있었다).
+      # TopN ranking 은 spill 대상이 아니라 한도가 곧 성패다. 1000MB = 실측 704.5MB + 42%.
       # 이 값들은 Trino **내부 회계**만 바꾼다 — RSS 를 줄이는 것은 위의 mem_limit 과
       # jvm.config 의 MaxRAMPercentage 다. #94 가 이 칸만 만지고 크래시를 못 잡은 이유다.
-      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-700MB}
+      TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-1000MB}
       TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-1500MB}
-      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-700MB}
-      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1400MB}
+      TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-1000MB}
+      TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-2000MB}
     volumes:
       # Iceberg 카탈로그는 **템플릿 1개**를 env 가 정한 이름으로 마운트해 만든다.
       # Trino 는 파일명 = 카탈로그명이므로, 이름을 env 에서 받으면 타깃 전환이 곧 카탈로그

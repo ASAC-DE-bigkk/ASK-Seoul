@@ -42,14 +42,16 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             "query.low-memory-killer.policy=total-reservation-on-blocked-nodes",
         }
         self.assertTrue(expected_config.issubset(set(self.config.splitlines())))
-        # 기본값은 #98 재산정치 — 줄어든 힙(7g × 50% = 3.5GiB)에 맞춘다.
-        # 풀 = 3.5GiB − headroom 1500MB ≈ 2.04GiB, per-node 700MB × 동시성 2 = 1.4GB.
+        # 기본값은 #98 재산정치 — 줄어든 힙(7g × 50% = 3584MB) 안에서 배분한다.
+        # 풀 = 3584 − headroom 1500MB = 2084MB, per-node 1000MB × 동시성 2 = 2000MB.
+        # per-node 1000MB 는 실측 하한이 있는 값이다: weather dbt_run_place_mart 가
+        # 704.5MB 필요(TopNRankingOperator 664.60MB, spill 불가). 700MB 로 낮추면 죽는다.
         # 이 칸은 Trino **내부 회계**만 바꾼다 — RSS 를 줄이는 것은 mem_limit/MaxRAMPercentage.
         expected_compose = {
-            "TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-700MB}",
+            "TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-1000MB}",
             "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-1500MB}",
-            "TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-700MB}",
-            "TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1400MB}",
+            "TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-1000MB}",
+            "TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-2000MB}",
         }
         for setting in expected_compose:
             self.assertIn(setting, self.compose)
@@ -58,10 +60,10 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
         expected = {
             "TRINO_MEMORY_LIMIT=7g",
             "TRINO_TASK_CONCURRENCY=2",
-            "TRINO_QUERY_MAX_MEMORY_PER_NODE=700MB",
+            "TRINO_QUERY_MAX_MEMORY_PER_NODE=1000MB",
             "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE=1500MB",
-            "TRINO_QUERY_MAX_MEMORY=700MB",
-            "TRINO_QUERY_MAX_TOTAL_MEMORY=1400MB",
+            "TRINO_QUERY_MAX_MEMORY=1000MB",
+            "TRINO_QUERY_MAX_TOTAL_MEMORY=2000MB",
         }
         self.assertTrue(expected.issubset(set(self.env_example.splitlines())))
 
