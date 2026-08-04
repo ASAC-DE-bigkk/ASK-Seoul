@@ -2,8 +2,9 @@
   "rootGroups": [
     {
       "name": "global",
+      "_comment": "동시성은 쿼리 풀 크기와 per-query 상한의 곱이 풀을 넘지 않게 정한다(ASK-Seoul#94). 3 x 800MB = 2.4GB <= 풀 2.47GB. 1 은 처리량이 모자라고 4 는 풀을 초과해 코디네이터가 자멸했다.",
       "softMemoryLimit": "80%",
-      "hardConcurrencyLimit": 1,
+      "hardConcurrencyLimit": 3,
       "maxQueued": 100,
       "schedulingPolicy": "fair",
       "jmxExport": true
