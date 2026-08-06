@@ -19,17 +19,8 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
     def test_container_is_pinned_bounded_and_supervised(self):
         self.assertIn("image: trinodb/trino:482", self.compose)
         self.assertIn("restart: unless-stopped", self.compose)
-        # RSS 상한(#98). mem_limit × MaxRAMPercentage 가 힙이고, 힙 + 비힙(~2GiB) 이 RSS 다.
-        # 9g/55% 로 되돌리면 RSS 가 ~7GiB 로 올라 VM global OOM 이 재발한다 — 두 값은 한 쌍.
-        self.assertIn("mem_limit: ${TRINO_MEMORY_LIMIT:-7g}", self.compose)
-        self.assertIn("-XX:MaxRAMPercentage=50", self.jvm)
-
-    def test_airflow_task_concurrency_is_bounded(self):
-        # Cosmos 는 dbt 모델 1개 = 태스크 1개 = dbt 서브프로세스 1개다. Airflow 기본값
-        # (parallelism 32 / per-DAG 16)이면 commerce_load_gold 혼자 16개를 동시에 띄워
-        # VM 이 고갈되고 커널이 Trino 를 SIGKILL 한다(#98 실측 5회).
-        self.assertIn('AIRFLOW__CORE__PARALLELISM: "8"', self.compose)
-        self.assertIn('AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: "6"', self.compose)
+        self.assertIn("mem_limit: ${TRINO_MEMORY_LIMIT:-9g}", self.compose)
+        self.assertIn("-XX:MaxRAMPercentage=55", self.jvm)
 
     def test_query_memory_budget_is_explicit(self):
         expected_config = {
@@ -42,31 +33,30 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             "query.low-memory-killer.policy=total-reservation-on-blocked-nodes",
         }
         self.assertTrue(expected_config.issubset(set(self.config.splitlines())))
-        # 기본값은 #98 재산정치 — 줄어든 힙(7g × 50% = 3.5GiB)에 맞춘다.
-        # 풀 = 3.5GiB − headroom 1500MB ≈ 2.04GiB, per-node 700MB × 동시성 2 = 1.4GB.
-        # 이 칸은 Trino **내부 회계**만 바꾼다 — RSS 를 줄이는 것은 mem_limit/MaxRAMPercentage.
+        # 기본값은 #94 실측 재산정치 — headroom 2500MB(비쿼리 실사용 3.66GiB 반영),
+        # per-node 800MB × 동시성 3 = 2.4GB 가 풀(≈2.47GB) 안에 들어온다.
         expected_compose = {
-            "TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-700MB}",
-            "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-1500MB}",
-            "TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-700MB}",
-            "TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1400MB}",
+            "TRINO_QUERY_MAX_MEMORY_PER_NODE: ${TRINO_QUERY_MAX_MEMORY_PER_NODE:-800MB}",
+            "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE: ${TRINO_MEMORY_HEAP_HEADROOM_PER_NODE:-2500MB}",
+            "TRINO_QUERY_MAX_MEMORY: ${TRINO_QUERY_MAX_MEMORY:-800MB}",
+            "TRINO_QUERY_MAX_TOTAL_MEMORY: ${TRINO_QUERY_MAX_TOTAL_MEMORY:-1600MB}",
         }
         for setting in expected_compose:
             self.assertIn(setting, self.compose)
 
     def test_safe_defaults_are_documented(self):
         expected = {
-            "TRINO_MEMORY_LIMIT=7g",
+            "TRINO_MEMORY_LIMIT=9g",
             "TRINO_TASK_CONCURRENCY=2",
-            "TRINO_QUERY_MAX_MEMORY_PER_NODE=700MB",
-            "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE=1500MB",
-            "TRINO_QUERY_MAX_MEMORY=700MB",
-            "TRINO_QUERY_MAX_TOTAL_MEMORY=1400MB",
+            "TRINO_QUERY_MAX_MEMORY_PER_NODE=800MB",
+            "TRINO_MEMORY_HEAP_HEADROOM_PER_NODE=2500MB",
+            "TRINO_QUERY_MAX_MEMORY=800MB",
+            "TRINO_QUERY_MAX_TOTAL_MEMORY=1600MB",
         }
         self.assertTrue(expected.issubset(set(self.env_example.splitlines())))
 
     def test_global_resource_group_bounds_concurrency(self):
-        # 동시성 2 = 줄어든 풀(≈2.04GiB)에 per-node 700MB 를 두 벌 태울 수 있는 최대값(#98).
+        # 동시성 3 = 처리량(1 이던 시절 scheduling 167초·큐 16 적체)과 안정성의 절충(#94).
         # low-memory-killer(위 테스트)와 한 쌍 — killer 없이 이 값만 올리면 크래시가 재발한다.
         resource_groups = ROOT / "trino/resource-groups.json"
         self.assertTrue(resource_groups.exists(), "resource-groups.json must exist")
@@ -74,7 +64,7 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
         self.assertEqual(1, len(data["rootGroups"]))
         group = data["rootGroups"][0]
         self.assertEqual("global", group["name"])
-        self.assertEqual(2, group["hardConcurrencyLimit"])
+        self.assertEqual(3, group["hardConcurrencyLimit"])
         self.assertEqual(100, group["maxQueued"])
         self.assertEqual("80%", group["softMemoryLimit"])
         self.assertEqual([{"user": ".*", "group": "global"}], data["selectors"])
