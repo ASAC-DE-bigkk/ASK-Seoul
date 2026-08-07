@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euxo pipefail
+
+# ---------------------------------------------------------------------------
+# 공통 부트스트랩 — Airflow 노드와 Trino 노드가 함께 쓴다.
+# 앱 배포는 하지 않는다. 저장소가 프라이빗이라 자격증명이 필요하고,
+# 배포는 별도 단계(scripts/deploy.sh)로 분리하는 편이 회수와 재현에 낫다.
+# ---------------------------------------------------------------------------
+
+dnf update -y
+dnf install -y docker git jq
+
+# Docker Compose v2 (플러그인). AL2023 기본 저장소에 없어 릴리스 바이너리를 받는다.
+COMPOSE_VERSION="v2.32.4"
+install -d /usr/libexec/docker/cli-plugins
+curl -fsSL \
+  "https://github.com/docker/compose/releases/download/$${COMPOSE_VERSION}/docker-compose-linux-aarch64" \
+  -o /usr/libexec/docker/cli-plugins/docker-compose
+chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+install -d -o ec2-user -g ec2-user /opt/${project}
+
+# 노드 식별용 — 배포 스크립트가 역할을 구분할 때 쓴다.
+cat >/etc/profile.d/${project}.sh <<EOF
+export ASK_SEOUL_NODE_ROLE=${role}
+export ASK_SEOUL_SSM_PREFIX=${ssm_prefix}
+export AWS_DEFAULT_REGION=${region}
+EOF

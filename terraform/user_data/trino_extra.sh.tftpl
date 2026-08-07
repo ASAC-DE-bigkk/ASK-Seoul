@@ -1,0 +1,64 @@
+
+# ---------------------------------------------------------------------------
+# Trino spill 디스크 — NVMe 인스턴스 스토어
+#
+# config.properties 가 spill-enabled=true / spiller-spill-path=/tmp/trino-spill 이다.
+# 이걸 EBS 에 두면 네트워크 스토리지라 spill 이 느려 저메모리 방어책이 제 역할을 못 한다.
+# r7gd 의 로컬 NVMe 를 붙인다.
+#
+# 인스턴스 스토어는 stop/start 시 내용이 사라지고 디바이스 경로도 바뀔 수 있다.
+# 따라서 user_data(최초 1회)가 아니라 매 부팅마다 도는 systemd 유닛으로 처리한다.
+# spill 은 휘발성 데이터라 초기화되어도 무방하다.
+# ---------------------------------------------------------------------------
+
+cat >/usr/local/bin/mount-trino-spill.sh <<'SCRIPT'
+#!/bin/bash
+set -euo pipefail
+
+MOUNT_POINT="/mnt/trino-spill"
+
+# 루트가 아닌 NVMe 디바이스 중 마운트되지 않은 첫 번째를 고른다.
+DEV=""
+for d in /dev/nvme*n1; do
+  [ -b "$d" ] || continue
+  # 파티션이 있거나 이미 마운트된 디바이스(=루트 EBS)는 건너뛴다.
+  if lsblk -no MOUNTPOINT "$d" | grep -q . ; then continue; fi
+  if lsblk -no NAME "$d" | tail -n +2 | grep -q . ; then continue; fi
+  DEV="$d"
+  break
+done
+
+if [ -z "$DEV" ]; then
+  echo "no free NVMe instance-store device found; leaving spill on root volume" >&2
+  install -d -m 1777 "$MOUNT_POINT"
+  exit 0
+fi
+
+# 인스턴스 스토어는 매 부팅 초기화 대상 — 항상 새로 포맷한다.
+mkfs.xfs -f "$DEV"
+install -d "$MOUNT_POINT"
+mount -o noatime,nodiratime "$DEV" "$MOUNT_POINT"
+chmod 1777 "$MOUNT_POINT"
+echo "mounted $DEV at $MOUNT_POINT"
+SCRIPT
+
+chmod +x /usr/local/bin/mount-trino-spill.sh
+
+cat >/etc/systemd/system/trino-spill.service <<'UNIT'
+[Unit]
+Description=Format and mount NVMe instance store for Trino spill
+DefaultDependencies=no
+After=local-fs.target
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/mount-trino-spill.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now trino-spill.service

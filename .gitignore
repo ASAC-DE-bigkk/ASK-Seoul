@@ -21,3 +21,18 @@ __pycache__/
 
 # 로컬 env 대조/작업용 폴더 — 실키 포함 가능성, 절대 커밋 금지('.env (1).dev' 류 공백 파일명은 기존 .env.* 패턴 미커버 실증)
 diff/
+
+# 클라우드 이전 사이징용 리소스 실측 덤프 — 확정된 결정이 아닌 원시 관측치라 docs/ 대상 아님.
+# 팀원 로컬·서버 리포트가 모이는 곳이며 docker inspect 출력에 시크릿이 섞일 수 있어 커밋 금지.
+resource-reports/
+
+# Terraform — .tf 소스는 커밋 대상이지만 state 와 변수 파일은 아니다.
+# state 에는 리소스 속성이 평문으로 들어가고, tfvars 에는 관리자 IP 가 들어간다.
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/*.tfvars.example
+terraform/tfplan*
+terraform/crash.log

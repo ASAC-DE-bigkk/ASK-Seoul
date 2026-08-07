@@ -1,0 +1,21 @@
+# 복사해서 terraform.tfvars 로 쓴다. terraform.tfvars 는 .gitignore 처리됨.
+#   cp terraform.tfvars.example terraform.tfvars
+
+# 필수 — Airflow UI 접근을 허용할 IP. 반드시 /32 로 좁힌다.
+#   확인: curl -s https://checkip.amazonaws.com
+admin_cidr = "222.108.125.33/32"
+
+# 아래는 전부 기본값이 실측 기반이라 그대로 두면 된다.
+# region                = "ap-northeast-2"
+# az                    = "ap-northeast-2a"
+# airflow_instance_type = "m7g.xlarge"   # 4 vCPU / 16 GiB
+# trino_instance_type   = "r7gd.large"   # 2 vCPU / 16 GiB / NVMe 118 GB
+# airflow_root_gb       = 100
+# trino_root_gb         = 40
+
+# commerce 수령 후 Trino 쿼리 peak 가 1.32GiB 를 크게 넘으면:
+# trino_instance_type = "r7g.xlarge"     # 4 vCPU / 32 GiB, 월 +$69
+
+# SSM Session Manager 로 접속하므로 기본은 SSH 미개방.
+# enable_ssh = false
+# key_name   = null
