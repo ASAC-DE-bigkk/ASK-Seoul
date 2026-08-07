@@ -378,17 +378,68 @@ aws ssm send-command --region ap-northeast-2 --instance-ids <id> \
   --parameters 'commands=["aws s3 cp s3://ask-seoul-test-staging-068381293928/status.sh /tmp/s.sh --region ap-northeast-2 --quiet && bash /tmp/s.sh 2>&1"]'
 ```
 
-### 재기동 절차
+### 재구축 절차 — `terraform apply` 하나로 끝나지 않는다
+
+2026-08-07 검증 후 `terraform destroy` 로 전부 내렸다. 다시 올리려면 **5단계**가 필요하다.
+`scripts/` 에 배포 스크립트를 보존해 뒀으므로 그대로 재사용한다.
 
 ```bash
-aws ec2 start-instances --region ap-northeast-2 \
-  --instance-ids i-0ad862fce5ded6d53 i-01cdc86a00f60c019
+# 1. 인프라 (약 2분)
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # admin_cidr 를 현재 IP 로
+terraform init && terraform apply
+
+# 2. 인스턴스 ID / 사설 IP 확보 — destroy 하면 전부 바뀐다
+terraform output           # airflow/trino public·private ip, staging_bucket
+
+# 3. 배포 아티팩트 + 스크립트를 새 스테이징 버킷에 업로드
+#    scripts/deploy-*.sh 안의 TRINO_IP 와 BUCKET 을 2번 output 값으로 수정한 뒤
+cd ..
+tar -czf /tmp/deploy.tar.gz \
+  --exclude='__pycache__' --exclude='*.pyc' --exclude='.pytest_cache' \
+  --exclude='target' --exclude='dbt_packages' --exclude='logs' \
+  --exclude='.git' --exclude='.env' --exclude='.env.*' \
+  docker-compose.yml docker-compose.cloud-trino.yml docker-compose.cloud-airflow.yml \
+  Dockerfile.airflow trino dags dbt
+B=<staging_bucket>
+aws s3 cp /tmp/deploy.tar.gz s3://$B/deploy.tar.gz --region ap-northeast-2
+aws s3 cp terraform/scripts/ s3://$B/ --recursive --region ap-northeast-2
+
+# 4. 시크릿 (destroy 대상이 아니라 남아 있으면 생략)
+#    .env.test 에서 주석을 뺀 키=값만 넣는다 — 한글 주석이 있으면 CLI 가 디코딩에 실패한다
+grep -E "^[A-Z0-9_]+=" .env.test > /tmp/env.stripped
+aws ssm put-parameter --region ap-northeast-2 --name /ask-seoul/test/env \
+  --type SecureString --tier Advanced --overwrite --value file:///tmp/env.stripped
+
+# 5. 노드 배포 → DAG 활성화 (SSM RunShellScript 로 실행)
+#    deploy-trino.sh → deploy-airflow.sh → unpause.sh 순서
 ```
 
-⚠️ **공인 IP가 바뀐다.** 재기동 후 반드시:
-1. `terraform apply` — SG의 `admin_cidr` 는 그대로지만 output 갱신
-2. `deploy-airflow.sh` 재실행 — IMDS에서 새 IP를 읽어 `AIRFLOW_API_BASE_URL` 갱신 (안 하면 UI가 localhost로 튕김)
-3. NVMe spill 은 `trino-spill.service` 가 부팅 시 자동 재생성 (데이터는 휘발)
+소요: 약 15~20분.
+
+**destroy 로 사라지는 것**
+- EC2 2대와 EBS(`delete_on_termination = true`) → **Airflow 메타DB 전체**
+  (태스크 실행 이력·DAG paused 상태·XCom). 재구축 후엔 빈 상태로 시작한다.
+- VPC·서브넷·SG·IAM 역할 (ID 가 전부 새로 발급된다)
+- S3 스테이징 버킷(`force_destroy = true`) 과 그 안의 아티팩트·스크립트
+
+**남는 것**
+- **R2 버킷 `ask-seoul-test`** — 적재한 4,683객체/215MB 와 Iceberg 테이블 61개 그대로
+- **D1 `ask-seoul-test-d1`** — 서빙 테이블 17개 그대로
+- **SSM `/ask-seoul/test/env`** — Terraform 관리 밖이라 남는다 (월 $0.05)
+- 이 저장소의 `.tf` · `scripts/` · `.env.test`(로컬, gitignore)
+
+즉 **데이터는 살아남고 컴퓨트만 사라진다.** 재구축하면 이어서 적재된다.
+
+### (참고) 정지만 할 때
+
+```bash
+aws ec2 stop-instances --region ap-northeast-2 --instance-ids <airflow> <trino>
+```
+
+EC2 요금은 0이 되고 EBS+IPv4 약 $20/월만 남는다. 메타DB가 보존되므로 재기동이 빠르다.
+⚠️ 공인 IP가 바뀌므로 `deploy-airflow.sh` 를 다시 돌려야 UI 가 열린다(IMDS 로 새 IP 주입).
+⚠️ NVMe spill 은 `trino-spill.service` 가 부팅 시 재생성한다(데이터는 휘발, 무방).
 
 ### 알아둘 함정
 
