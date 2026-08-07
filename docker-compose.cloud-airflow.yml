@@ -1,0 +1,31 @@
+# Airflow 전용 노드 오버레이 (AWS 분리 배포)
+#
+#   docker compose -f docker-compose.yml -f docker-compose.cloud-airflow.yml up -d \
+#     airflow-apiserver airflow-scheduler airflow-dag-processor airflow-triggerer
+#
+# 로컬 단일 호스트에서는 쓰지 않는다.
+#
+# 왜 필요한가:
+#   base compose 의 airflow-scheduler 가 trino 를 depends_on 한다(초기 커밋부터).
+#   단일 호스트에서는 "Trino 가 healthy 해진 뒤 스케줄러를 띄운다"는 기동 순서 보장이지만,
+#   Trino 를 별도 노드로 빼면 같은 compose 프로젝트가 아니므로 성립할 수 없다.
+#   이 의존을 그대로 두면 `up -d airflow-scheduler` 가 **이 노드에도 Trino 를 띄운다**
+#   (실측: mem_limit 9g 짜리 컨테이너가 중복 기동됨).
+#
+# 잃는 것:
+#   스케줄러가 Trino 상태와 무관하게 기동한다. Trino 가 아직 안 떴으면 초기 태스크가
+#   실패하고 재시도로 넘어간다. 노드 분리를 택한 이상 compose 레벨에서는 복구할 수 없는
+#   보장이며, 필요하면 외부 헬스체크로 대체해야 한다. (MIGRATION.md §8 B안의 파생 결과)
+
+services:
+  airflow-scheduler:
+    depends_on: !override
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-apiserver:
+        condition: service_healthy
+
+  # 이 노드에서는 Trino 를 정의만 두고 기동하지 않는다.
+  # 프로파일을 달면 명시적으로 --profile 을 주지 않는 한 대상에서 빠진다.
+  trino:
+    profiles: ["disabled-on-airflow-node"]

@@ -1,0 +1,16 @@
+# Trino 전용 노드 오버레이 (AWS 분리 배포)
+#
+#   docker compose -f docker-compose.yml -f docker-compose.cloud-trino.yml up -d trino
+#
+# 로컬 단일 호스트에서는 쓰지 않는다 — /mnt/trino-spill 이 없기 때문이다.
+# 그 마운트는 Terraform 의 trino-spill.service 가 매 부팅마다 NVMe 인스턴스 스토어를
+# 포맷·마운트해 만든다(terraform/user_data/trino_extra.sh.tftpl).
+#
+# 왜 필요한가: config.properties 가 spill-enabled=true / spiller-spill-path=/tmp/trino-spill 인데,
+# 오버레이 없이 두면 컨테이너의 /tmp 는 쓰기 레이어(= EBS gp3)에 얹힌다. EBS 는 네트워크
+# 스토리지라 spill 이 느려 저메모리 방어책이 제 역할을 못 한다. r7gd 의 로컬 NVMe 를 붙인다.
+
+services:
+  trino:
+    volumes:
+      - /mnt/trino-spill:/tmp/trino-spill

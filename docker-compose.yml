@@ -17,13 +17,17 @@ x-airflow-common: &airflow-common
     AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_SECRET_KEY}
     AIRFLOW__API_AUTH__JWT_ISSUER: airflow
-    AIRFLOW__API__BASE_URL: http://localhost:30585
+    # Airflow 가 리다이렉트·링크를 만들 때 쓰는 외부 주소. 로컬 기본은 localhost 그대로.
+    # 원격 호스트(EC2)에 올릴 때 이 값을 안 바꾸면 UI 접속 시 localhost 로 튕긴다(실측).
+    AIRFLOW__API__BASE_URL: ${AIRFLOW_API_BASE_URL:-http://localhost:30585}
     AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-apiserver:8080/execution/
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
     DBT_PROFILES_DIR: /opt/airflow/dbt/elt_smoke
     DBT_PROJECT_DIR: /opt/airflow/dbt/elt_smoke
-    TRINO_HOST: trino
-    TRINO_PORT: "8080"
+    # 기본값 trino = 같은 compose 네트워크의 서비스명(로컬 단일 호스트).
+    # Airflow/Trino 를 별도 EC2 로 분리할 때만 host .env 에 Trino 노드 사설 IP 를 넣는다.
+    TRINO_HOST: ${TRINO_HOST:-trino}
+    TRINO_PORT: "${TRINO_PORT:-8080}"
     TRINO_USER: airflow
     # OpenLineage → Marquez. Cosmos/dbt run 태스크가 물리 relation 기반 lineage 이벤트를
     # marquez-api 로 방출한다. 일시 장애 시 방출은 fail-open(경고만, 태스크 실패 아님).
@@ -173,8 +177,22 @@ services:
       - ./trino/resource-groups.json:/etc/trino/resource-groups.json:ro
     ports:
       # Trino HTTP(8080) → 호스트 30586. DBeaver/DataGrip 접속용.
-      # Trino 기본 인증 없음 → 127.0.0.1 전용 바인드(LAN 미노출).
-      - "127.0.0.1:30586:8080"
+      # Trino 기본 인증 없음 → **기본값은 127.0.0.1 전용 바인드(LAN 미노출)**. 로컬 동작은 불변.
+      #
+      # Airflow/Trino 를 별도 노드로 분리할 때만 TRINO_BIND_IP 에 해당 노드의 사설 IP 를
+      # 넣는다(0.0.0.0 금지). 그 순간 방어가 '호스트 경계'에서 '보안그룹 규칙'으로 옮겨가므로
+      # 반드시 아래 두 조건을 함께 만족해야 한다:
+      #   1) 인바운드 8080 을 Airflow 노드가 속한 SG 에서만 허용 (관리자 IP 도 열지 않는다)
+      #   2) Trino UI 가 필요하면 SSM 포트 포워딩을 쓴다 — 포트를 열지 않는다
+      #        aws ssm start-session --target <trino-id> \
+      #          --document-name AWS-StartPortForwardingSession \
+      #          --parameters '{"portNumber":["8080"],"localPortNumber":["30586"]}'
+      # 배경: ASK-Seoul 클라우드 이전 결정(terraform/MIGRATION.md §8, B안).
+      #
+      # 발행 포트도 변수다. 로컬 기본은 30586(기존 그대로)이지만, 분리 배포에서는
+      # TRINO_PUBLISH_PORT=8080 으로 맞춘다 — Airflow 쪽 TRINO_PORT 기본값이 8080 이라
+      # 두 값이 어긋나면 연결이 안 된다.
+      - "${TRINO_BIND_IP:-127.0.0.1}:${TRINO_PUBLISH_PORT:-30586}:8080"
     healthcheck:
       test: ["CMD-SHELL", "trino --execute 'SELECT 1' >/dev/null 2>&1"]
       interval: 15s
