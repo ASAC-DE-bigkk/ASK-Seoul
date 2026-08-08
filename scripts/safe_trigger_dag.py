@@ -51,6 +51,7 @@ ACTIVE_STATES = frozenset({"queued", "running"})
 SAFE_DIAGNOSTIC = re.compile(r"[^A-Za-z0-9_.:~+-]")
 # Stable, repository-namespaced signed bigint: int.from_bytes(b"ASKSAFE1", "big").
 ADVISORY_LOCK_KEY = 4707188856481793329
+RESULT_PREFIX = "ASK_SAFE_TRIGGER_RESULT="
 
 
 def conflict_set_for(dag_id: str) -> set[str]:
@@ -200,7 +201,7 @@ try:
 except Exception:
     result = {{"status": "guard_failed"}}
 
-print(json.dumps(result, sort_keys=True))
+print("{RESULT_PREFIX}" + json.dumps(result, sort_keys=True))
 """.strip()
 
 
@@ -252,6 +253,24 @@ def _active_runs(output: str) -> list[dict[str, str]]:
     return active
 
 
+def _guard_result(output: str) -> dict[str, object]:
+    """Parse one authenticated guard result while ignoring Airflow startup logs."""
+    try:
+        result = json.loads(output)
+    except json.JSONDecodeError:
+        marked = [
+            line.removeprefix(RESULT_PREFIX)
+            for line in output.splitlines()
+            if line.startswith(RESULT_PREFIX)
+        ]
+        if len(marked) != 1:
+            raise ValueError("guard output must contain exactly one result marker")
+        result = json.loads(marked[0])
+    if not isinstance(result, dict) or not isinstance(result.get("status"), str):
+        raise ValueError("guard output root is not a status object")
+    return result
+
+
 def _sanitize(value: str) -> str:
     return SAFE_DIAGNOSTIC.sub("_", value)
 
@@ -286,9 +305,7 @@ def main(argv: Sequence[str] | None = None, *, runner: Runner = _run) -> int:
         return 2
 
     try:
-        result = json.loads(guard_result.stdout)
-        if not isinstance(result, dict) or not isinstance(result.get("status"), str):
-            raise ValueError("guard output root is not a status object")
+        result = _guard_result(guard_result.stdout)
     except (json.JSONDecodeError, ValueError) as exc:
         print(f"scheduler admission guard returned malformed JSON; trigger blocked: {exc}", file=sys.stderr)
         return 2
