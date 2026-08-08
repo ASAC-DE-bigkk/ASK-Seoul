@@ -306,6 +306,41 @@ class SafeTriggerDagTest(unittest.TestCase):
         self.assertFalse(payload["check_only"])
         self.assertEqual(module.ADVISORY_LOCK_KEY, payload["lock_key"])
 
+    def test_main_ignores_airflow_startup_logs_before_guard_result(self):
+        module = _module()
+        runner = StaticResultRunner(
+            subprocess.CompletedProcess(
+                ["scheduler-guard"],
+                0,
+                "2026-08-08T09:12:51Z [info] setup plugin\n"
+                'ASK_SAFE_TRIGGER_RESULT={"status":"clear"}\n',
+                "",
+            )
+        )
+
+        exit_code = module.main(
+            ["weather_vilage_fcst_transform", "--check-only"], runner=runner
+        )
+
+        self.assertEqual(0, exit_code)
+
+    def test_main_fails_closed_without_exact_guard_result_marker(self):
+        module = _module()
+        runner = StaticResultRunner(
+            subprocess.CompletedProcess(
+                ["scheduler-guard"],
+                0,
+                'startup log\n{"status":"clear"}\n',
+                "",
+            )
+        )
+
+        exit_code = module.main(
+            ["weather_vilage_fcst_transform", "--check-only"], runner=runner
+        )
+
+        self.assertNotEqual(0, exit_code)
+
     def test_serialized_scheduler_script_uses_argv_and_suppresses_trigger_output(self):
         module = _module()
         airflow_module = types.ModuleType("airflow")
@@ -361,7 +396,10 @@ class SafeTriggerDagTest(unittest.TestCase):
         ):
             exec(compile(module._scheduler_script(), "<scheduler-guard>", "exec"), {})
 
-        self.assertEqual('{"status": "triggered"}\n', output.getvalue())
+        self.assertEqual(
+            'ASK_SAFE_TRIGGER_RESULT={"status": "triggered"}\n',
+            output.getvalue(),
+        )
         self.assertNotIn("sensitive", output.getvalue())
         self.assertEqual(1, len(trigger_calls))
         command, kwargs = trigger_calls[0]
