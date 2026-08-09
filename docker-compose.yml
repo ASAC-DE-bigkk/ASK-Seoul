@@ -171,6 +171,11 @@ services:
       - ./trino/config.properties:/etc/trino/config.properties:ro
       - ./trino/resource-groups.properties:/etc/trino/resource-groups.properties:ro
       - ./trino/resource-groups.json:/etc/trino/resource-groups.json:ro
+      # fs 캐시(ASK-Seoul#107) 영속화. 마운트 지점이 /data/trino(전체 데이터 디렉토리)인 이유:
+      # 이미지에 trino 소유로 존재하는 경로라 최초 마운트 시 copy-up 으로 소유권이 유지된다.
+      # 이미지에 없는 경로(/data/trino/cache 직접 등)에 마운트하면 root 소유가 되어 Trino 가
+      # 캐시를 못 쓴다. 캐시 실체는 /data/trino/cache (iceberg.properties fs.cache.directories).
+      - trino_cache:/data/trino
     ports:
       # Trino HTTP(8080) → 호스트 30586. DBeaver/DataGrip 접속용.
       # Trino 기본 인증 없음 → 127.0.0.1 전용 바인드(LAN 미노출).
@@ -291,6 +296,7 @@ volumes:
   postgres_data:
   airflow_logs:
   marquez_db_data:      # lineage 프로파일(Marquez) 전용
+  trino_cache:          # Trino fs 캐시 + 데이터 디렉토리 (ASK-Seoul#107)
 
 networks:
   elt_net:
