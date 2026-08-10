@@ -36,6 +36,8 @@ TRAFFIC_DAGS = frozenset(
         "traffic_incident_recollect",
         "traffic_incident_bronze_backfill",
         "traffic_flow_bronze",
+        "traffic_link_reference_backfill",
+        "traffic_link_reference_sync",
         "traffic_incident_transform",
         "traffic_flow_transform",
         "traffic_gold_transform",
