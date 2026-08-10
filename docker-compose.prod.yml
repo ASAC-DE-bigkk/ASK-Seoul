@@ -44,12 +44,25 @@ services:
   trino:
     env_file: !override
       - "${ASK_SEOUL_PROD_ENV_FILE:-.env.prod}"
+    depends_on:
+      trino-cache-init:
+        condition: service_completed_successfully
     volumes: !override
       - ./trino/catalog-prod:/etc/trino/catalog:ro
       - ./trino/jvm.config:/etc/trino/jvm.config:ro
       - ./trino/config.properties:/etc/trino/config.properties:ro
       - ./trino/resource-groups.properties:/etc/trino/resource-groups.properties:ro
       - ./trino/resource-groups.json:/etc/trino/resource-groups.json:ro
+      - trino_cache:/data/trino
+
+  trino-cache-init:
+    image: trinodb/trino:482
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["mkdir -p /data/trino/cache && chown trino:trino /data/trino/cache"]
+    volumes:
+      - trino_cache:/data/trino
 
   airflow-init:
     <<: *prod-airflow
@@ -65,3 +78,6 @@ services:
 networks:
   elt_net:
     name: elt-infra-prod-net
+
+volumes:
+  trino_cache:
