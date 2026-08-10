@@ -42,6 +42,8 @@ EXPECTED_TRAFFIC_DAGS = {
     "traffic_incident_transform",
     "traffic_flow_transform",
     "traffic_gold_transform",
+    "traffic_cross_domain_gold_transform",
+    "traffic_cross_domain_serving_export",
     "traffic_snapshot_recovery",
     "traffic_serving_export",
     "traffic_bronze_reliability_report",
