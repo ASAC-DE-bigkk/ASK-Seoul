@@ -121,7 +121,7 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             "WARNING: traffic_weather target/manifest.json is missing; "
             "Weather/Traffic serving DAGs may fail until dbt parse succeeds.",
             'chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" '
-            '"$${TW_DBT}/dbt_packages" 2>/dev/null || true',
+            '"$${TW_DBT}/logs" "$${TW_DBT}/dbt_packages" 2>/dev/null || true',
         )
         for command in bootstrap_commands:
             with self.subTest(command=command):
@@ -159,6 +159,7 @@ class TrinoRuntimeHardeningTest(unittest.TestCase):
             "trino_weather_heavy",
             "trino_weather_legacy_heavy",
             "trino_weather_recovery_heavy",
+            "serving_d1_publish",
         }
         self.assertIsInstance(payload, dict)
         self.assertEqual(expected_pool_names, set(payload))
