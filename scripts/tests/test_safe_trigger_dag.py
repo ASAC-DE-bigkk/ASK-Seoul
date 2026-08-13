@@ -19,6 +19,7 @@ MODULE_PATH = ROOT / "scripts" / "safe_trigger_dag.py"
 
 EXPECTED_WEATHER_DAGS = {
     "weather_vilage_fcst_bronze",
+    "weather_vilage_fcst_collection_slot_reconciliation",
     "weather_vilage_fcst_recollect",
     "weather_vilage_fcst_bronze_backfill",
     "weather_vilage_fcst_transform",
@@ -33,6 +34,7 @@ EXPECTED_WEATHER_DAGS = {
 
 EXPECTED_TRAFFIC_DAGS = {
     "traffic_incident_landing",
+    "traffic_incident_collection_slot_reconciliation",
     "traffic_incident_bronze",
     "traffic_incident_recollect",
     "traffic_incident_bronze_backfill",
