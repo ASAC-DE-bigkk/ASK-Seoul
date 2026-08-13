@@ -236,7 +236,8 @@ services:
         else
           echo "WARNING: traffic_weather target/manifest.json is missing; Weather/Traffic serving DAGs may fail until dbt parse succeeds." >&2
         fi
-        chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" "$${TW_DBT}/dbt_packages" 2>/dev/null || true
+        # root init이 만든 dbt logs도 런타임 uid가 run별 preflight 경로를 생성할 수 있어야 한다.
+        chown -R "$${AIRFLOW_UID}:0" "$${TW_DBT}/target" "$${TW_DBT}/logs" "$${TW_DBT}/dbt_packages" 2>/dev/null || true
     user: "0:0"
     depends_on:
       postgres:
