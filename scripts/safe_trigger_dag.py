@@ -16,6 +16,7 @@ Runner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 WEATHER_DAGS = frozenset(
     {
         "weather_vilage_fcst_bronze",
+        "weather_vilage_fcst_collection_slot_reconciliation",
         "weather_vilage_fcst_recollect",
         "weather_vilage_fcst_bronze_backfill",
         "weather_vilage_fcst_transform",
@@ -32,6 +33,7 @@ WEATHER_DAGS = frozenset(
 TRAFFIC_DAGS = frozenset(
     {
         "traffic_incident_landing",
+        "traffic_incident_collection_slot_reconciliation",
         "traffic_incident_bronze",
         "traffic_incident_recollect",
         "traffic_incident_bronze_backfill",
