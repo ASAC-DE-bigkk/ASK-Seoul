@@ -38,6 +38,8 @@ def _prod_values() -> dict[str, str]:
         "ASK_SEOUL_SCHEMA": "weather_traffic_bronze",
         "SERVING_CLOUDFLARE_ACCOUNT_ID": "account",
         "SERVING_D1_DATABASE_ID": "database",
+        "SERVING_API_BASE_URL": "https://ask-seoul.kr",
+        "SERVING_API_SMOKE_TOKEN": "smoke-token",
         "ASK_SEOUL_AIRFLOW_IMAGE": "ghcr.io/example/airflow@sha256:" + "a" * 64,
         "MARQUEZ_POSTGRES_USER": "marquez",
         "MARQUEZ_POSTGRES_PASSWORD": "marquez-password",
@@ -106,6 +108,26 @@ class ReleaseContractTest(unittest.TestCase):
         values["ASK_SEOUL_SCHEMA"] = "dev_mason"
 
         with self.assertRaisesRegex(module.ReleaseContractError, "dev schema"):
+            module.validate_prod_environment(values)
+
+    def test_prod_preflight_rejects_missing_serving_smoke_token(self):
+        module = _module()
+        values = _prod_values()
+        values.pop("SERVING_API_SMOKE_TOKEN")
+
+        with self.assertRaisesRegex(
+            module.ReleaseContractError, "SERVING_API_SMOKE_TOKEN"
+        ):
+            module.validate_prod_environment(values)
+
+    def test_prod_preflight_rejects_wrong_serving_api_base_url(self):
+        module = _module()
+        values = _prod_values()
+        values["SERVING_API_BASE_URL"] = "https://example.invalid"
+
+        with self.assertRaisesRegex(
+            module.ReleaseContractError, "SERVING_API_BASE_URL"
+        ):
             module.validate_prod_environment(values)
 
     def test_release_artifact_pins_all_components_and_immutable_image(self):
